@@ -1,9 +1,9 @@
 import os
 import sys
+from decimal import *
+
 import pygame
 from pygame.locals import *
-
-# Todo: may want to consider switching to Decimal from float
 
 DEFAULT_FPS = 60
 
@@ -17,35 +17,53 @@ CB_ORIGIN = {'topleft': (1, 1), 'topright': (-1, 1),
              'centerleft': (1, 0), 'centerright': (-1, 0),
              'center': (0, 0)}
 
+disp_anim = True
+export_anim = False
+
+export_count = 0
+export_frames = 0
+export_fmt = 'jpg'
+
 global_fps = DEFAULT_FPS
 bgcolor = GREY
+
+def gcd(a, b):
+    """Return greatest common divisor using Euclid's Algorithm."""
+    while b > 0:      
+        a, b = b, a % b
+    return a
+
+def lcm(a, b):
+    """Return lowest common multiple."""
+    return a * b // gcd(a, b)
 
 class CheckerBoard:
 
     def __init__(self, dims, init_unit, end_unit, position, origin, 
-                 cols, freq, phase = 0):
+                 cols, freq, phase=0):
         self.dims = tuple([int(x) for x in dims])
-        self.init_unit = tuple([float(x) for x in init_unit])
-        self.end_unit = tuple([float (x) for x in end_unit])
-        self.position = tuple([float(x) for x in position])
+        self.init_unit = tuple([Decimal(str(x)) for x in init_unit])
+        self.end_unit = tuple([Decimal(str(x)) for x in end_unit])
+        self.position = tuple([Decimal(str(x)) for x in position])
         if isinstance(origin, str):
             self.origin = CB_ORIGIN[origin]
         else:
             self.origin = tuple(origin)
         self.cols = tuple(cols)
-        self.freq = float(freq)
-        self.phase = float(phase) # In degrees
-        self.unit_grad = tuple([(2.0 if (flag == 0) else 1.0) * 
+        self.freq = Decimal(str(freq))
+        self.phase = Decimal(str(phase)) # In degrees
+        self.unit_grad = tuple([(2 if (flag == 0) else 1) * 
                                 (y2 - y1) / dx for y1, y2, dx, flag in 
                                 zip(self.init_unit, self.end_unit, 
                                     self.dims, self.origin)])
         self.firstrun = True
 
-    def draw(self, Surface, position = None):
+    def draw(self, Surface, position=None):
+        Surface.lock()
         if position == None:
             position = self.position
         else:
-            position = tuple([float(x) for x in position])
+            position = tuple([Decimal(str(x)) for x in position])
         # Set initial values
         init_unit = [c + m/2 for c, m in zip(self.init_unit, self.unit_grad)]
         init_pos = list(position)
@@ -53,7 +71,7 @@ class CheckerBoard:
             if v == 0:
                 init_unit[n] = self.end_unit[n] - (self.unit_grad[n] / 2)
                 init_pos[n] -= ((self.init_unit[n] + self.end_unit[n]) / 2 *
-                                self.dims[n] / 2.0)
+                                self.dims[n] / Decimal(2))
         cur_unit = list(init_unit)
         cur_unit_pos = list(init_pos)
         # Draw unit cells in nested for loop
@@ -73,9 +91,9 @@ class CheckerBoard:
                 # Increase x values
                 if self.origin[0] == 0:
                     cur_unit_pos[0] += cur_unit[0]
-                    if float(i + 1) < (self.dims[0] / 2.0):
+                    if Decimal(i + 1) < (self.dims[0] / Decimal(2)):
                         cur_unit[0] -= self.unit_grad[0]
-                    elif float(i + 1) > (self.dims[0] / 2.0):
+                    elif Decimal(i + 1) > (self.dims[0] / Decimal(2)):
                         cur_unit[0] += self.unit_grad[0]
                     else:
                         pass
@@ -88,17 +106,18 @@ class CheckerBoard:
             # Increase y values
             if self.origin[1] == 0:
                 cur_unit_pos[1] += cur_unit[1]
-                if float(j + 1) < (self.dims[1] / 2.0):
+                if Decimal(j + 1) < (self.dims[1] / Decimal(2)):
                     cur_unit[1] -= self.unit_grad[1]
-                elif float(j + 1) > (self.dims[1] / 2.0):
+                elif Decimal(j + 1) > (self.dims[1] / Decimal(2)):
                     cur_unit[1] += self.unit_grad[1]
                 else:
                     pass
             else:
                 cur_unit_pos[1] += self.origin[1]*cur_unit[1]
                 cur_unit[1] += self.unit_grad[1]
+        Surface.unlock()
 
-    def anim(self, Surface, position = None, fps = None):
+    def anim(self, Surface, position=None, fps=None):
         if fps == None:
             fps = global_fps
         if self.freq != 0:
@@ -114,9 +133,11 @@ class CheckerBoard:
 pygame.init()
 
 size = width, height = 800, 600
-window = pygame.display.set_mode(size)
-pygame.display.set_caption('checkergen')
-screen = pygame.display.get_surface()
+if disp_anim:
+    screen = pygame.display.set_mode(size)
+    pygame.display.set_caption('checkergen')
+else:
+    screen = pygame.Surface(size)
 
 clock = pygame.time.Clock()
 
@@ -137,11 +158,22 @@ myboards.append(CheckerBoard((6, 6), (20, 20), (40, 40),
 
 screen.fill(bgcolor)
 
-while True:
-    clock.tick(global_fps)
-    for board in myboards:
-        board.anim(screen)
+if export_anim:
+    fpps = [global_fps / board.freq for board in myboards if board.freq != 0]
+    export_frames = reduce(lcm, fpps)
+
+while (disp_anim or (export_anim and export_count < export_frames)):
+    if disp_anim:
+        clock.tick(global_fps)
     for event in pygame.event.get():
         if event.type == QUIT:
             sys.exit(0)
-    pygame.display.flip()
+    screen.lock()
+    for board in myboards:
+        board.anim(screen)
+    screen.unlock()
+    if disp_anim:
+        pygame.display.flip()
+    if export_anim and export_count < export_frames:
+        pygame.image.save(screen, 'anim%03d.%s' % (export_count, export_fmt))
+        export_count += 1
