@@ -1,5 +1,8 @@
+#! /usr/bin/env python
+
 import os
 import sys
+import math
 from decimal import *
 
 import pygame
@@ -22,10 +25,11 @@ export_anim = False
 
 export_count = 0
 export_frames = 0
-export_fmt = 'jpg'
+export_fmt = 'png'
 
 global_fps = DEFAULT_FPS
-bgcolor = GREY
+bg_color = GREY
+screen_size = screen_w, screen_h = 800, 600
 
 def gcd(a, b):
     """Return greatest common divisor using Euclid's Algorithm."""
@@ -37,6 +41,14 @@ def lcm(a, b):
     """Return lowest common multiple."""
     return a * b // gcd(a, b)
 
+def numdigits(x):
+    """Returns number of digits in a decimal integer"""
+    if x == 0:
+        return 1
+    elif x < 0:
+        x = -x
+    return int(math.log(x, 10)) + 1
+    
 class CheckerBoard:
 
     def __init__(self, dims, init_unit, end_unit, position, origin, 
@@ -131,32 +143,30 @@ class CheckerBoard:
         self.draw(Surface, position)
 
 pygame.init()
-
-size = width, height = 800, 600
 if disp_anim:
-    screen = pygame.display.set_mode(size)
+    screen = pygame.display.set_mode(screen_size)
     pygame.display.set_caption('checkergen')
 else:
-    screen = pygame.Surface(size)
+    screen = pygame.Surface(screen_size)
 
 clock = pygame.time.Clock()
 
 myboards = []
 
 myboards.append(CheckerBoard((6, 6), (20, 20), (40, 40), 
-                             (width/2 - 20, height/2 - 20),
+                             (screen_w/2 - 20, screen_h/2 - 20),
                              'btmright', (BLACK, WHITE), 1))
 myboards.append(CheckerBoard((6, 6), (20, 20), (40, 40), 
-                             (width/2 + 20, height/2 - 20), 
+                             (screen_w/2 + 20, screen_h/2 - 20), 
                              'btmleft', (BLACK, WHITE), 2))
 myboards.append(CheckerBoard((6, 6), (20, 20), (40, 40), 
-                             (width/2 - 20, height/2 + 20), 
+                             (screen_w/2 - 20, screen_h/2 + 20), 
                              'topright', (BLACK, WHITE), 3))
 myboards.append(CheckerBoard((6, 6), (20, 20), (40, 40), 
-                             (width/2 + 20, height/2 + 20), 
+                             (screen_w/2 + 20, screen_h/2 + 20), 
                              'topleft', (BLACK, WHITE), 4))
 
-screen.fill(bgcolor)
+screen.fill(bg_color)
 
 if export_anim:
     fpps = [global_fps / board.freq for board in myboards if board.freq != 0]
@@ -167,7 +177,7 @@ while (disp_anim or (export_anim and export_count < export_frames)):
         clock.tick(global_fps)
     for event in pygame.event.get():
         if event.type == QUIT:
-            sys.exit(0)
+            disp_anim = False
     screen.lock()
     for board in myboards:
         board.anim(screen)
@@ -175,5 +185,9 @@ while (disp_anim or (export_anim and export_count < export_frames)):
     if disp_anim:
         pygame.display.flip()
     if export_anim and export_count < export_frames:
-        pygame.image.save(screen, 'anim%03d.%s' % (export_count, export_fmt))
+        pygame.image.save(screen,'anim{0}.{1}'.
+                          format(repr(export_count).
+                                 zfill(numdigits(export_frames-1)), export_fmt))
         export_count += 1
+        if export_count == export_frames:
+            print 'Export done.'
