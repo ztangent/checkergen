@@ -2,6 +2,7 @@
 
 import os
 import sys
+import argparse
 import math
 from decimal import *
 
@@ -19,13 +20,6 @@ CB_ORIGIN = {'topleft': (1, 1), 'topright': (-1, 1),
              'topcenter': (0, 1), 'btmcenter': (0, -1),
              'centerleft': (1, 0), 'centerright': (-1, 0),
              'center': (0, 0)}
-
-disp_anim = True
-export_anim = False
-
-export_count = 0
-export_frames = 0
-export_fmt = 'png'
 
 global_fps = DEFAULT_FPS
 bg_color = GREY
@@ -142,6 +136,39 @@ class CheckerBoard:
                     self.phase -= 360
         self.draw(Surface, position)
 
+parser = argparse.ArgumentParser(
+    description='''Generate flashing checkerboard patterns for display
+                   or export as a series of images, intended for use in
+                   psychophysics experiemnts. Checkerboards can be
+                   distorted in the horizontal and vertical directions,
+                   or both. Position, origin (e.g. top-left, center) or
+                   color can be specified, as well as frequency and
+                   phase of the flashing.''')
+
+parser.add_argument('-d', '--nodisp', dest='disp_anim', action='store_false',
+                    help='hides the animation from being displayed')
+parser.add_argument('-e', '--export', dest='export_dir', metavar='dir',
+                    help='export the animation to the specified directory')
+parser.add_argument('-n', '--name', dest='export_name',
+                    default='anim', metavar='projectname',
+                    help='name the project for saving or export')
+parser.add_argument('-f', '--format', dest='export_fmt',
+                    choices=['bmp','tga','jpg','png'], default='png',
+                    help='image format for animation to be exported as')
+
+args = parser.parse_args()
+
+disp_anim = args.disp_anim
+if args.export_dir != None:
+    export_anim = True
+    export_dir = args.export_dir
+    if not os.path.isdir(export_dir):
+        sys.exit("export path is not a directory")
+    export_name = args.export_name
+    export_fmt = args.export_fmt
+else:
+    export_anim = False
+
 pygame.init()
 if disp_anim:
     screen = pygame.display.set_mode(screen_size)
@@ -168,9 +195,13 @@ myboards.append(CheckerBoard((6, 6), (20, 20), (40, 40),
 
 screen.fill(bg_color)
 
+export_count = 0
+
 if export_anim:
     fpps = [global_fps / board.freq for board in myboards if board.freq != 0]
     export_frames = reduce(lcm, fpps)
+else:
+    export_frames = 0
 
 while (disp_anim or (export_anim and export_count < export_frames)):
     if disp_anim:
@@ -185,9 +216,11 @@ while (disp_anim or (export_anim and export_count < export_frames)):
     if disp_anim:
         pygame.display.flip()
     if export_anim and export_count < export_frames:
-        pygame.image.save(screen,'anim{0}.{1}'.
-                          format(repr(export_count).
-                                 zfill(numdigits(export_frames-1)), export_fmt))
+        pygame.image.save(screen,
+                          os.path.join(export_dir, '{0}{1}.{2}'.
+                                       format(export_name, repr(export_count).
+                                              zfill(numdigits(export_frames-1)),
+                                              export_fmt)))
         export_count += 1
         if export_count == export_frames:
             print 'Export done.'
