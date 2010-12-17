@@ -21,6 +21,7 @@ DEFAULT_RES = 800, 600
 DEFAULT_BG = Color(127, 127, 127)
 EXPORT_FMTS = ['bmp', 'tga', 'jpg', 'png']
 DEFAULT_EXPORT_FMT = 'png'
+MAX_EXPORT_FRAMES = 10000
 
 def gcd(a, b):
     """Return greatest common divisor using Euclid's Algorithm."""
@@ -157,6 +158,8 @@ class CheckerBoard:
                                     zip(self.init_unit, self.end_unit, 
                                         self.dims, self.origin)])
 
+    # TODO: Compute draw model for quicker drawing (IMPORTANT!)
+
     def draw(self, Surface, position=None):
         Surface.lock()
         if position == None:
@@ -182,7 +185,7 @@ class CheckerBoard:
                     if v < 0:
                         cur_unit_rect[n] -= cur_unit[n]                
                 cur_unit_rect = [int(round(x)) for x in cur_unit_rect]
-                if 180 <= self.phase < 360:
+                if 180 <= self.cur_phase < 360:
                     cur_cols = list(reversed(self.cols)) 
                 else:
                     cur_cols = list(self.cols)
@@ -232,7 +235,7 @@ class CheckerBoard:
                 self.cur_phase -= 360
 
 def display_anim(proj):
-    pygame.init()
+    pygame.display.init()
     screen = pygame.display.set_mode(proj.res)
     screen.fill(proj.bg)
     pygame.display.set_caption('checkergen')    
@@ -245,21 +248,36 @@ def display_anim(proj):
         clock.tick(proj.fps)
         for event in pygame.event.get():
             if event.type == QUIT:
+                pygame.display.quit()
                 return
         screen.lock()
         for board in proj.boards:
             board.anim(screen, fps=proj.fps)
         screen.unlock()
-        python.display.flip()
+        pygame.display.flip()
+        pygame.time.wait(0)
 
-def export_anim(proj, export_dir, export_fmt=None):
+def export_anim(proj, export_dir, export_fmt=None, cmd_mode=True):
+    if cmd_mode:
+        print "Exporting..."
     if export_fmt == None:
         export_fmt = proj.export_fmt
-    pygame.init()
+    pygame.display.init()
     screen = pygame.Surface(proj.res)
     screen.fill(proj.bg)
     fpps = [proj.fps / board.freq for board in proj.boards if board.freq != 0]
     frames = reduce(lcm, fpps)
+    if frames > MAX_EXPORT_FRAMES:
+        if not cmd_mode:
+            pygame.display.quit()
+            return
+        else:
+            print "More than", MAX_EXPORT_FRAMES, "are going to be exported."
+            print "Are you sure you want to continue? (y/n)"
+            if not yn_parser(raw_input()):
+                print "Export cancelled."
+                pygame.display.quit()
+                return
     count = 0
 
     for board in proj.boards:
@@ -276,6 +294,9 @@ def export_anim(proj, export_dir, export_fmt=None):
                                        repr(count).zfill(numdigits(frames-1))))
         pygame.image.save(screen, savepath)
         count += 1
+    if cmd_mode:
+        print "Export done."
+        pygame.display.quit()
 
 class CmdParser(argparse.ArgumentParser):
     def error(self, message):
@@ -361,21 +382,22 @@ class CkgCmd(cmd.Cmd):
 
     set_parser = CmdParser(add_help=False, prog='set',
                           description='''Sets various project settings.''')
-    set_parser.add_argument('--name', help='project name, always same as ' +\
-                                           'filename without the extension')
+    set_parser.add_argument('--name', help='''project name, always the same as
+                                              the filename without
+                                              the extension''')
     set_parser.add_argument('--fps', type=Decimal,
-                            help='number of animation frames ' +\
-                                 'rendered per second')
+                            help='''number of animation frames
+                                    rendered per second''')
     set_parser.add_argument('--res', action=store_tuple(2, ',', int),
                             help='animation canvas size/resolution in pixels',
                             metavar='WIDTH,HEIGHT')
     set_parser.add_argument('--bg', metavar='COLOR', type=col_cast,
-                            help='background color of the canvas' +
-                                 '(color format: R,G,B or name, ' + 
-                                 'component range from 0-255)')
+                            help='''background color of the canvas
+                                    (color format: R,G,B or name, 
+                                    component range from 0-255)''')
     set_parser.add_argument('--fmt', dest='export_fmt', choices=EXPORT_FMTS,
-                            help='image format for animation ' +\
-                                 'to be exported as')
+                            help='''image format for animation
+                                    to be exported as''')
 
     def do_set(self, line):
         if self.cur_proj == None:
@@ -408,24 +430,22 @@ class CkgCmd(cmd.Cmd):
                           description='''Makes a new checkerboard with the 
                                          given parameters.''')
     mk_parser.add_argument('dims', action=store_tuple(2, ',', Decimal),
-                           help='width,height of checkerboard in no. of ' +
-                                'unit cells')
+                           help='''width,height of checkerboard in no. of 
+                                   unit cells''')
     mk_parser.add_argument('init_unit', action=store_tuple(2, ',', Decimal),
-                           help='width,height of initial unit cell in ' +
-                                'pixels')
+                           help='width,height of initial unit cell in pixels')
     mk_parser.add_argument('end_unit', action=store_tuple(2, ',', Decimal),
-                           help='width,height of final unit cell in ' +
-                                'pixels')
+                           help='width,height of final unit cell in pixels')
     mk_parser.add_argument('position', action=store_tuple(2, ',', Decimal),
                            help='x,y position of checkerboard in pixels')
     mk_parser.add_argument('origin', choices=CheckerBoard.locations,
-                           help='location of origin point of checkerboard ' +
-                                '(choices: %(choices)s)',
+                           help='''location of origin point of checkerboard
+                                   (choices: %(choices)s)''',
                            metavar='origin')
     mk_parser.add_argument('cols', action=store_tuple(2, ',', col_cast, [';']),
-                           help='color1,color2 of the checkerboard ' +
-                                '(color format: R;G;B or name, ' + 
-                                'component range from 0-255)')
+                           help='''color1,color2 of the checkerboard
+                                   (color format: R;G;B or name, 
+                                   component range from 0-255)''')
     mk_parser.add_argument('freq', type=Decimal,
                            help='frequency of color reversal in Hz')
     mk_parser.add_argument('phase', type=Decimal, nargs='?', default='0',
@@ -476,13 +496,14 @@ class CkgCmd(cmd.Cmd):
                            help='position of checkerboard in pixels',
                            metavar='X,Y')
     ed_parser.add_argument('--origin', choices=CheckerBoard.locations,
-                           help='location of origin point of checkerboard ' +
-                                '(choices: %(choices)s)',
+                           help='''location of origin point of checkerboard
+                                   (choices: %(choices)s)''',
                            metavar='LOCATION')
     ed_parser.add_argument('--cols', metavar='COLOR1,COLOR2',
                            action=store_tuple(2, ',', col_cast, [';']),
-                           help='checkerboard colors (color format: ' +
-                                'R;G;B or name, component range from 0-255)')
+                           help='''checkerboard colors (color format:
+                                   R;G;B or name, component range 
+                                   from 0-255)''')
     ed_parser.add_argument('--freq', type=Decimal,
                            help='frequency of color reversal in Hz')
     ed_parser.add_argument('--phase', type=Decimal,
@@ -553,7 +574,7 @@ class CkgCmd(cmd.Cmd):
         del rmlist[:]
 
     def help_rm(self):
-        print 'usage: rm id [id ...]'
+        print 'usage: rm id [id ...]\n'
         print 'Removes all checkerboards specified by the ids.'
 
     def do_ls(self, line):
@@ -629,10 +650,33 @@ class CkgCmd(cmd.Cmd):
                     str(board.phase).rjust(7)            
 
     def help_ls(self):
-        print 'usage: ls {settings, boards}'
+        print 'usage: ls {settings, boards}\n'
         print 'Lists project settings, checkerboards and their attributes.'
         print 'Providing no arguments results in everything being listed.'
         
+    def do_display(self, line):
+        """Displays the animation in a separate window."""
+        if self.cur_proj == None:
+            print 'please create or open a project first'
+            return
+        for thread in threading.enumerate():
+            if thread.name == 'display_thread':
+                print 'error: animation is already being displayed'
+                return
+        else:
+            threading.Thread(target=display_anim, name='display_thread',
+                             args=[copy.deepcopy(self.cur_proj)]).start()
+
+    export_parser = CmdParser(add_help=False, prog='export',
+                              description='''Exports animation as a sequence
+                                             of images to the specified
+                                             directory''')
+    export_parser.add_argument('--fmt', dest='export_fmt', choices=EXPORT_FMTS,
+                            help='image format for export')
+
+    def do_export(self, line):
+        pass
+
     def do_quit(self, line):
         """Quits the program."""
         return True
@@ -689,15 +733,12 @@ elif args.path == None:
         print("error: no project file specified for display or export\n")
 
 if args.display_flag:
-    display_thread = threading.Thread(target=display_anim, 
+    display_thread = threading.Thread(target=display_anim,
+                                      name='display_thread',
                                       args=[copy.deepcopy(args.proj)])
     display_thread.start()
 if args.export_flag:
-    export_thread = threading.Thread(target=export_anim, 
-                                     args=[copy.deepcopy(args.proj), 
-                                           args.export_dir, 
-                                           args.export_fmt])
-    export_thread.start()
+    export_anim(copy.deepcopy(args.proj), args.export_dir, args.export_fmt)
 if args.cmd_mode:
     mycmd = CkgCmd()
     mycmd.cur_proj = args.proj
