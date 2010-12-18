@@ -733,7 +733,9 @@ class CkgCmd(cmd.Cmd):
                               description='''Exports animation as an image
                                              sequence (in a folder) to the
                                              specified directory.''')
-    export_parser.add_argument('dir', help='destination directory for export')
+    export_parser.add_argument('dir', nargs='?', default=os.getcwd(),
+                               help='''destination directory for export
+                                       (default: current working directory)''')
     export_parser.add_argument('--fmt', dest='export_fmt', choices=EXPORT_FMTS,
                                help='image format for export')
     export_parser.add_argument('-n','--nofolder', action='store_false',
@@ -780,7 +782,8 @@ parser = argparse.ArgumentParser(
 
 parser.add_argument('-c', '--cmd', dest='cmd_mode', action='store_true',
                     help='enter command line mode regardless of other options')
-parser.add_argument('-d', '--disp', dest='display_flag', action='store_true',
+parser.add_argument('-d', '--display',
+                    dest='display_flag', action='store_true',
                     help='displays the animation on the screen')
 parser.add_argument('-e', '--export', dest='export_dir', metavar='dir',
                     help='export the animation to the specified directory')
