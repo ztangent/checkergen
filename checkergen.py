@@ -7,6 +7,7 @@ import textwrap
 import readline
 import argparse
 import cmd
+import shlex
 import threading
 import math
 from decimal import *
@@ -137,26 +138,22 @@ class CheckerBoard:
         else:
             raise TypeError
         self.cols = tuple(cols)
-        for col in self.cols:
-            col.set_length(3)
         self.freq = Decimal(str(freq))
         self.phase = Decimal(str(phase))
         self.cur_phase = self.phase
         self.unit_grad = tuple([(2 if (flag == 0) else 1) * 
                                 (y2 - y1) / dx for y1, y2, dx, flag in 
-                                zip(self.init_unit, self.end_unit, 
-                                    self.dims, self.origin)])
+                                zip(self.init_unit, self.end_unit, self.dims,
+                                    CheckerBoard.locations[self.origin])])
 
-    def update(self, attr, val):
+    def edit(self, attr, val):
         setattr(self, attr, val)
-        if attr == 'cols':
-            for col in self.cols:
-                col.set_length(3)            
         if attr in ['dims','init_unit','end_unit','origin']:
             self.unit_grad = tuple([(2 if (flag == 0) else 1) * 
                                     (y2 - y1) / dx for y1, y2, dx, flag in 
                                     zip(self.init_unit, self.end_unit, 
-                                        self.dims, self.origin)])
+                                        self.dims, 
+                                        CheckerBoard.locations[self.origin])])
 
     # TODO: Compute draw model for quicker drawing (IMPORTANT!)
 
@@ -234,9 +231,13 @@ class CheckerBoard:
             if self.cur_phase >= 360:
                 self.cur_phase -= 360
 
-def display_anim(proj):
+def display_anim(proj, fullscreen=False):
     pygame.display.init()
-    screen = pygame.display.set_mode(proj.res)
+    if fullscreen:
+        screen = pygame.display.set_mode(proj.res,
+                                         FULLSCREEN | HWSURFACE | DOUBLEBUF)
+    else:
+        screen = pygame.display.set_mode(proj.res)
     screen.fill(proj.bg)
     pygame.display.set_caption('checkergen')    
     clock = pygame.time.Clock()
@@ -250,6 +251,10 @@ def display_anim(proj):
             if event.type == QUIT:
                 pygame.display.quit()
                 return
+            if event.type == KEYDOWN:
+                if event.key == K_ESCAPE:
+                    pygame.display.quit()
+                    return                
         screen.lock()
         for board in proj.boards:
             board.anim(screen, fps=proj.fps)
@@ -257,7 +262,11 @@ def display_anim(proj):
         pygame.display.flip()
         pygame.time.wait(0)
 
-def export_anim(proj, export_dir, export_fmt=None, cmd_mode=True):
+def export_anim(proj, export_dir, export_fmt=None, folder=True, cmd_mode=True):
+    if not os.path.isdir(export_dir):
+        if cmd_mode:
+            print "error: export path is not a directory"
+        return
     if cmd_mode:
         print "Exporting..."
     if export_fmt == None:
@@ -267,6 +276,8 @@ def export_anim(proj, export_dir, export_fmt=None, cmd_mode=True):
     screen.fill(proj.bg)
     fpps = [proj.fps / board.freq for board in proj.boards if board.freq != 0]
     frames = reduce(lcm, fpps)
+    count = 0
+
     if frames > MAX_EXPORT_FRAMES:
         if not cmd_mode:
             pygame.display.quit()
@@ -278,7 +289,11 @@ def export_anim(proj, export_dir, export_fmt=None, cmd_mode=True):
                 print "Export cancelled."
                 pygame.display.quit()
                 return
-    count = 0
+            
+    if folder:
+        export_dir = os.path.join(export_dir, proj.name)
+        if not os.path.isdir(export_dir):
+            os.mkdir(export_dir)
 
     for board in proj.boards:
         board.reset()
@@ -399,11 +414,15 @@ class CkgCmd(cmd.Cmd):
                             help='''image format for animation
                                     to be exported as''')
 
+    def help_set(self):
+        CkgCmd.set_parser.print_help()
+
     def do_set(self, line):
         if self.cur_proj == None:
+            print 'no project open, automatically creating project...'
             self.do_new('')
         try:
-            args = CkgCmd.set_parser.parse_args(line.split())
+            args = CkgCmd.set_parser.parse_args(shlex.split(line))
         except (SyntaxError, InvalidOperation,
                 argparse.ArgumentError, argparse.ArgumentTypeError):
             print "error:", str(sys.exc_info()[1])
@@ -418,13 +437,10 @@ class CkgCmd(cmd.Cmd):
                 setattr(self.cur_proj, name, val)
                 noflags = False
         if noflags:
-            print "error: no options specified, please specify at least one"
+            print "no options specified, please specify at least one"
             CkgCmd.set_parser.print_usage()
         else:
             self.cur_proj.dirty = True
-
-    def help_set(self):
-        CkgCmd.set_parser.print_help()
 
     mk_parser = CmdParser(add_help=False, prog='mk',
                           description='''Makes a new checkerboard with the 
@@ -451,12 +467,16 @@ class CkgCmd(cmd.Cmd):
     mk_parser.add_argument('phase', type=Decimal, nargs='?', default='0',
                            help='initial phase of animation in degrees')
 
+    def help_mk(self):
+        CkgCmd.mk_parser.print_help()
+
     def do_mk(self, line):
         """Makes a checkerboard with the given parameters."""
         if self.cur_proj == None:
+            print 'no project open, automatically creating project...'
             self.do_new('')
         try:
-            args = CkgCmd.mk_parser.parse_args(line.split())
+            args = CkgCmd.mk_parser.parse_args(shlex.split(line))
         except (SyntaxError, InvalidOperation,
                 argparse.ArgumentError, argparse.ArgumentTypeError):
             print "error:", str(sys.exc_info()[1])
@@ -474,9 +494,6 @@ class CkgCmd(cmd.Cmd):
         self.cur_proj.boards.append(newboard)
         self.cur_proj.dirty = True
         print "checkerboard", len(self.cur_proj.boards)-1, "added"
-
-    def help_mk(self):
-        CkgCmd.mk_parser.print_help()
 
     ed_parser = CmdParser(add_help=False, prog='ed',
                           description='''Edits attributes of checkerboards
@@ -509,12 +526,16 @@ class CkgCmd(cmd.Cmd):
     ed_parser.add_argument('--phase', type=Decimal,
                            help='initial phase of animation in degrees')
 
+    def help_ed(self):
+        CkgCmd.ed_parser.print_help()
+
     def do_ed(self, line):
         """Edits attributes of checkerboards specified by ids."""
         if self.cur_proj == None:
-            self.do_new('')
+            print 'please create or open a project first'
+            return
         try:
-            args = CkgCmd.ed_parser.parse_args(line.split())
+            args = CkgCmd.ed_parser.parse_args(shlex.split(line))
         except (SyntaxError, InvalidOperation,
                 argparse.ArgumentError, argparse.ArgumentTypeError):
             print "error:", str(sys.exc_info()[1])
@@ -534,35 +555,46 @@ class CkgCmd(cmd.Cmd):
             val = getattr(args, name)
             if val != None:
                 for x in args.idlist:
-                    self.cur_proj.boards[x].update(name, val)
+                    self.cur_proj.boards[x].edit(name, val)
                 noflags = False
         if noflags:
-            print "error: no options specified, please specify at least one"
+            print "no options specified, please specify at least one"
             CkgCmd.ed_parser.print_usage()
         else:
             self.cur_proj.dirty = True
 
-    def help_ed(self):
-        CkgCmd.ed_parser.print_help()
+    rm_parser = CmdParser(add_help=False, prog='rm',
+                          description='''Removes checkerboards specified
+                                         by ids.''')
+    rm_parser.add_argument('idlist', nargs='*', metavar='id', type=int,
+                           help='ids of checkerboards to be removed')
+    rm_parser.add_argument('-a', '--all', action='store_true',
+                           help='remove all checkerboards')
+
+    def help_rm(self):
+        CkgCmd.rm_parser.print_help()
 
     def do_rm(self, line):
         """Removes checkerboards specified by ids"""
         if self.cur_proj == None:
-            self.do_new('')
-        idlist = line.split()
-        if len(idlist) == 0:
-            print "error: too few arguments"
+            print 'please create or open a project first'
+            return
+        try:
+            args = CkgCmd.rm_parser.parse_args(shlex.split(line))
+        except (SyntaxError, InvalidOperation,
+                argparse.ArgumentError, argparse.ArgumentTypeError):
+            print "error:", str(sys.exc_info()[1])
+            if sys.exc_info()[0] in (SyntaxError, argparse.ArgumentError):
+                CkgCmd.rm_parser.print_usage()
+            return
         rmlist = []
-        for x in idlist:
-            if x == 'all':
-                del self.cur_proj.boards[:]
-                print "all checkerboards removed"
-                return
-            try:
-                x = int(x)
-            except ValueError:
-                print "ignoring non-integral argument '{x}'".format(x=x)
-                continue
+        if args.all:
+            del self.cur_proj.boards[:]
+            print "all checkerboards removed"
+            return
+        elif len(args.idlist) == 0:
+            print "please specify at least one id"
+        for x in args.idlist:
             if x >= len(self.cur_proj.boards) or x < 0:
                 print "checkerboard", x, "does not exist"
                 continue
@@ -573,91 +605,120 @@ class CkgCmd(cmd.Cmd):
         self.cur_proj.dirty = True
         del rmlist[:]
 
-    def help_rm(self):
-        print 'usage: rm id [id ...]\n'
-        print 'Removes all checkerboards specified by the ids.'
+    ls_parser = CmdParser(add_help=False, prog='ls',
+                          description='''Lists project settings, checkerboards
+                                         and their attributes.''')
+    ls_parser.add_argument('idlist', nargs='*', metavar='id', type=int,
+                           help='''ids of checkerboards to be listed, all
+                                   are listed if not specified''')
+    ls_group = ls_parser.add_mutually_exclusive_group()
+    ls_group.add_argument('-s', '--settings', action='store_true',
+                           help='list only settings')
+    ls_group.add_argument('-b', '--boards', action='store_true',
+                           help='list only checkerboards')
+
+    def help_ls(self):
+        CkgCmd.ls_parser.print_help()
 
     def do_ls(self, line):
         """Lists project settings, checkerboards and their attributes."""
+
+        def ls_str(s, sep=','):
+            """Special space-saving output formatter."""
+            if type(s) in [tuple, list]:
+                return sep.join([ls_str(i) for i in s])
+            elif type(s) == pygame.Color:
+                return str((s.r, s.b, s.g)).translate(None,' ')
+            else:
+                return str(s)
+
         if self.cur_proj == None:
             print 'please create or open a project first'
             return
+        try:
+            args = CkgCmd.ls_parser.parse_args(shlex.split(line))
+        except (SyntaxError, InvalidOperation,
+                argparse.ArgumentError, argparse.ArgumentTypeError):
+            print "error:", str(sys.exc_info()[1])
+            if sys.exc_info()[0] in (SyntaxError, argparse.ArgumentError):
+                CkgCmd.ls_parser.print_usage()
+            return
 
-        ls_settings = True
-        ls_boards = True
+        for x in args.idlist[:]:
+            if x >= len(self.cur_proj.boards) or x < 0:
+                args.idlist.remove(x)
+                print "checkerboard", x, "does not exist"
+        if args.idlist == []:
+            args.idlist = range(len(self.cur_proj.boards))
+        else:
+            args.boards = True
 
-        if len(line) > 0:
-            arg = line.split()[0]
-            if arg == 'boards':
-                ls_settings = False
-            elif arg == 'settings':
-                ls_boards = False
-
-        if ls_settings:
-            print 'name'.rjust(13),\
+        if not args.boards:
+            print \
+                'name'.rjust(13),\
                 'fps'.rjust(6),\
-                'res'.rjust(12),\
+                'resolution'.rjust(12),\
                 'bg color'.rjust(16),\
-                'fmt'.rjust(7)
-            name = self.cur_proj.name
-            fps = str(self.cur_proj.fps)
-            res = [str(i) for i in self.cur_proj.res]
-            res = ','.join(res)
-            bg = str(tuple(self.cur_proj.bg)).translate(None,' ')
-            export_fmt = self.cur_proj.export_fmt
-            print name.rjust(13),\
-                fps.rjust(6),\
-                res.rjust(12),\
-                bg.rjust(16),\
-                export_fmt.rjust(7)
+                'format'.rjust(7)
+            print \
+                ls_str(self.cur_proj.name).rjust(13),\
+                ls_str(self.cur_proj.fps).rjust(6),\
+                ls_str(self.cur_proj.res).rjust(12),\
+                ls_str(self.cur_proj.bg).rjust(16),\
+                ls_str(self.cur_proj.export_fmt).rjust(7)
 
-        if ls_settings and ls_boards:
+        if not args.settings and not args.boards:
             print ''
 
-        if ls_boards:
-            print 'id'.rjust(2),\
+        if not args.settings:
+            print \
+                'id'.rjust(2),\
                 'dims'.rjust(10),\
                 'init_unit'.rjust(14),\
                 'end_unit'.rjust(14),\
                 'position'.rjust(14)
-            for n, board in enumerate(self.cur_proj.boards):
-                dims = [str(i) for i in board.dims]
-                dims = ','.join(dims)
-                init_unit = [str(i) for i in board.init_unit]
-                init_unit = ','.join(init_unit)
-                end_unit = [str(i) for i in board.end_unit]
-                end_unit = ','.join(end_unit)
-                position = [str(i) for i in board.position]
-                position = ','.join(position)
-                print str(n).rjust(2),\
-                    dims.rjust(10),\
-                    init_unit.rjust(14),\
-                    end_unit.rjust(14),\
-                    position.rjust(14)        
+            for n, board in zip(args.idlist, self.cur_proj.boards):
+                print \
+                    ls_str(n).rjust(2),\
+                    ls_str(board.dims).rjust(10),\
+                    ls_str(board.init_unit).rjust(14),\
+                    ls_str(board.end_unit).rjust(14),\
+                    ls_str(board.position).rjust(14)        
             print '\n',\
                 'id'.rjust(2),\
                 'colors'.rjust(27),\
                 'origin'.rjust(12),\
                 'freq'.rjust(6),\
                 'phase'.rjust(7)
-            for n, board in enumerate(self.cur_proj.boards):
-                cols = [str(tuple(c)).translate(None,' ') for c in board.cols]
-                cols = ','.join(cols)
-                print str(n).rjust(2),\
-                    cols.rjust(27),\
-                    board.origin.rjust(12),\
-                    str(board.freq).rjust(6),\
-                    str(board.phase).rjust(7)            
+            for n, board in zip(args.idlist, self.cur_proj.boards):
+                print \
+                    ls_str(n).rjust(2),\
+                    ls_str(board.cols).rjust(27),\
+                    ls_str(board.origin).rjust(12),\
+                    ls_str(board.freq).rjust(6),\
+                    ls_str(board.phase).rjust(7)            
 
-    def help_ls(self):
-        print 'usage: ls {settings, boards}\n'
-        print 'Lists project settings, checkerboards and their attributes.'
-        print 'Providing no arguments results in everything being listed.'
-        
+    display_parser = CmdParser(add_help=False, prog='display',
+                               description='''Displays the animation in a
+                                              window or in fullscreen.''')
+    display_parser.add_argument('-f', '--fullscreen', action='store_true',
+                                help='sets fullscreen mode, ESC to quit')
+
+    def help_display(self):
+        CkgCmd.display_parser.print_help()
+
     def do_display(self, line):
-        """Displays the animation in a separate window."""
+        """Displays the animation in window or in fullscreen"""
         if self.cur_proj == None:
             print 'please create or open a project first'
+            return
+        try:
+            args = CkgCmd.display_parser.parse_args(shlex.split(line))
+        except (SyntaxError, InvalidOperation,
+                argparse.ArgumentError, argparse.ArgumentTypeError):
+            print "error:", str(sys.exc_info()[1])
+            if sys.exc_info()[0] in (SyntaxError, argparse.ArgumentError):
+                CkgCmd.display_parser.print_usage()
             return
         for thread in threading.enumerate():
             if thread.name == 'display_thread':
@@ -665,17 +726,38 @@ class CkgCmd(cmd.Cmd):
                 return
         else:
             threading.Thread(target=display_anim, name='display_thread',
-                             args=[copy.deepcopy(self.cur_proj)]).start()
+                             args=[copy.deepcopy(self.cur_proj),
+                                   args.fullscreen]).start()
 
     export_parser = CmdParser(add_help=False, prog='export',
-                              description='''Exports animation as a sequence
-                                             of images to the specified
-                                             directory''')
+                              description='''Exports animation as an image
+                                             sequence (in a folder) to the
+                                             specified directory.''')
+    export_parser.add_argument('dir', help='destination directory for export')
     export_parser.add_argument('--fmt', dest='export_fmt', choices=EXPORT_FMTS,
-                            help='image format for export')
+                               help='image format for export')
+    export_parser.add_argument('-n','--nofolder', action='store_false',
+                               help='''force images not to exported in 
+                                       a containing folder''')
+
+
+    def help_export(self):
+        CkgCmd.export_parser.print_help()
 
     def do_export(self, line):
-        pass
+        """Exports animation an image sequence to the specified directory."""
+        if self.cur_proj == None:
+            print 'please create or open a project first'
+            return
+        try:
+            args = CkgCmd.export_parser.parse_args(shlex.split(line))
+        except (SyntaxError, InvalidOperation,
+                argparse.ArgumentError, argparse.ArgumentTypeError):
+            print "error:", str(sys.exc_info()[1])
+            if sys.exc_info()[0] in (SyntaxError, argparse.ArgumentError):
+                CkgCmd.export_parser.print_usage()
+            return
+        export_anim(self.cur_proj, args.dir, args.export_fmt, args.nofolder)
 
     def do_quit(self, line):
         """Quits the program."""
@@ -702,19 +784,23 @@ parser.add_argument('-d', '--disp', dest='display_flag', action='store_true',
                     help='displays the animation on the screen')
 parser.add_argument('-e', '--export', dest='export_dir', metavar='dir',
                     help='export the animation to the specified directory')
+parser.add_argument('-f', '--fullscreen', action='store_true',
+                    help='animation displayed in fullscreen mode')
 parser.add_argument('--fmt', dest='export_fmt', choices=EXPORT_FMTS,
                     help='image format for animation to be exported as')
-parser.add_argument('path', nargs='?',
+parser.add_argument('path', nargs='?', type=file,
                     help='checkergen project file to open')
 
 args = parser.parse_args()
 
 if args.export_dir != None:
-    if not os.path.isdir(args.export_dir):
-        sys.exit("error: export path is not a directory")
+    print args.export_dir
     args.export_flag = True
 else:
     args.export_flag = False
+
+if not args.display_flag and not args.export_flag:
+    args.cmd_mode = True
 
 if args.path != None:
     if not os.path.isfile(args.path):
@@ -723,19 +809,16 @@ if args.path != None:
     os.chdir(os.path.dirname(os.path.abspath(args.path)))
 else:
     args.proj = None
-
-if not args.display_flag and not args.export_flag:
-    args.cmd_mode = True
-elif args.path == None:
-    if not args.cmd_mode:
-        sys.exit("error: no project file specified for display or export")
-    else:
-        print("error: no project file specified for display or export\n")
+    if args.display_flag or args.export_flag:
+        print "error: no project file specified for display or export"
+        if not args.cmd_mode:
+            sys.exit(1)
 
 if args.display_flag:
     display_thread = threading.Thread(target=display_anim,
                                       name='display_thread',
-                                      args=[copy.deepcopy(args.proj)])
+                                      args=[copy.deepcopy(args.proj), 
+                                            args.fullscreen])
     display_thread.start()
 if args.export_flag:
     export_anim(copy.deepcopy(args.proj), args.export_dir, args.export_fmt)
