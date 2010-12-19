@@ -108,7 +108,11 @@ class CkgProj:
             msg = 'image format not recognized or supported'
             raise TypeError(msg)
         self.boards = []
-        self.dirty = True
+
+    def __setattr__(self, name, value):
+        self.__dict__[name] = value
+        if name != 'dirty':
+            self.dirty = True
 
     def load(self, path):
         # TODO: Extension checking
@@ -122,9 +126,9 @@ class CkgProj:
 class CheckerBoard:
 
     locations = {'topleft': (1, 1), 'topright': (-1, 1),
-                 'btmleft': (1, -1), 'btmright': (-1, -1),
-                 'topcenter': (0, 1), 'btmcenter': (0, -1),
-                 'centerleft': (1, 0), 'centerright': (-1, 0),
+                 'bottomleft': (1, -1), 'bottomright': (-1, -1),
+                 'midtop': (0, 1), 'midbottom': (0, -1),
+                 'midleft': (1, 0), 'midright': (-1, 0),
                  'center': (0, 0)}
 
     def __init__(self, dims, init_unit, end_unit, position, origin, 
@@ -140,96 +144,130 @@ class CheckerBoard:
         self.cols = tuple(cols)
         self.freq = Decimal(str(freq))
         self.phase = Decimal(str(phase))
-        self.cur_phase = self.phase
-        self.unit_grad = tuple([(2 if (flag == 0) else 1) * 
-                                (y2 - y1) / dx for y1, y2, dx, flag in 
-                                zip(self.init_unit, self.end_unit, self.dims,
-                                    CheckerBoard.locations[self.origin])])
+        self.reset()
 
-    def edit(self, attr, val):
-        setattr(self, attr, val)
-        if attr in ['dims','init_unit','end_unit','origin']:
-            self.unit_grad = tuple([(2 if (flag == 0) else 1) * 
-                                    (y2 - y1) / dx for y1, y2, dx, flag in 
-                                    zip(self.init_unit, self.end_unit, 
-                                        self.dims, 
-                                        CheckerBoard.locations[self.origin])])
+    def __setattr__(self, name, value):
+        self.__dict__[name] = value
+        if name in ['dims', 'init_unit', 'end_unit', 'origin','cols']:
+            self._prerendered = False
 
-    # TODO: Compute draw model for quicker drawing (IMPORTANT!)
+    def reset(self, new_phase=None):
+        if new_phase == None:
+            new_phase = self.phase
+        self._cur_phase = new_phase
+        self._prev_phase = new_phase
+        self._first_draw = True
 
-    def draw(self, Surface, position=None):
-        Surface.lock()
-        if position == None:
-            position = self.position
-        else:
-            position = tuple([Decimal(str(x)) for x in position])
+    def update(self, fps=DEFAULT_FPS):
+        self._prev_phase = self._cur_phase
+        if self.freq != 0:
+            fpp = fps / self.freq
+            self._cur_phase += 360 / fpp
+            if self._cur_phase >= 360:
+                self._cur_phase %= 360
+
+    def prerender(self):
+        """Prerenders the checkerboards for quick blitting later."""
+        # Set up prerender surfaces
+        self._size = tuple([(y1 + y2) / 2 * n for y1, y2, n in
+                            zip(self.init_unit, self.end_unit, self.dims)])
+        prerenders = [pygame.Surface(self._size) for i in range(2)]
+
+        # Compute unit size gradient
+        unit_grad = tuple([(2 if (flag == 0) else 1) * 
+                           (y2 - y1) / n for y1, y2, n, flag in 
+                           zip(self.init_unit, self.end_unit, self.dims,
+                               CheckerBoard.locations[self.origin])])
+
         # Set initial values
-        init_unit = [c + m/2 for c, m in zip(self.init_unit, self.unit_grad)]
-        init_pos = list(position)
+        init_pos = [Decimal(0), Decimal(0)]
+        init_unit = [c + m/2 for c, m in zip(self.init_unit, unit_grad)]
         for n, v in enumerate(CheckerBoard.locations[self.origin]):
             if v == 0:
-                init_unit[n] = self.end_unit[n] - (self.unit_grad[n] / 2)
-                init_pos[n] -= ((self.init_unit[n] + self.end_unit[n]) / 2 *
-                                self.dims[n] / Decimal(2))
+                init_unit[n] = self.end_unit[n] - (unit_grad[n] / 2)
+            elif v < 0:
+                init_pos[n] = self._size[n]
         cur_unit = list(init_unit)
         cur_unit_pos = list(init_pos)
+
+        for prerender in prerenders:
+            prerender.lock()
+
         # Draw unit cells in nested for loop
         for j in range(self.dims[1]):
             for i in range(self.dims[0]):
                 cur_unit_rect = cur_unit_pos + cur_unit
+
                 # Ensure unit cells are drawn in the right place
                 for n, v in enumerate(CheckerBoard.locations[self.origin]):
                     if v < 0:
                         cur_unit_rect[n] -= cur_unit[n]                
                 cur_unit_rect = [int(round(x)) for x in cur_unit_rect]
-                if 180 <= self.cur_phase < 360:
-                    cur_cols = list(reversed(self.cols)) 
-                else:
-                    cur_cols = list(self.cols)
-                Surface.fill(cur_cols[(i + j) % 2], tuple(cur_unit_rect))
+                prerenders[0].fill(self.cols[(i + j) % 2], 
+                                       tuple(cur_unit_rect))
+                prerenders[1].fill(self.cols[(i + j + 1) % 2], 
+                                       tuple(cur_unit_rect))
+
                 # Increase x values
                 if CheckerBoard.locations[self.origin][0] == 0:
                     cur_unit_pos[0] += cur_unit[0]
                     if Decimal(i + 1) < (self.dims[0] / Decimal(2)):
-                        cur_unit[0] -= self.unit_grad[0]
+                        cur_unit[0] -= unit_grad[0]
                     elif Decimal(i + 1) > (self.dims[0] / Decimal(2)):
-                        cur_unit[0] += self.unit_grad[0]
+                        cur_unit[0] += unit_grad[0]
                     else:
                         pass
                 else:
                     cur_unit_pos[0] += CheckerBoard.locations[self.origin][0]*\
                                        cur_unit[0]
-                    cur_unit[0] += self.unit_grad[0]
+                    cur_unit[0] += unit_grad[0]
+
             # Reset x values
             cur_unit_pos[0] = init_pos[0]
             cur_unit[0] = init_unit[0]
+
             # Increase y values
             if CheckerBoard.locations[self.origin][1] == 0:
                 cur_unit_pos[1] += cur_unit[1]
                 if Decimal(j + 1) < (self.dims[1] / Decimal(2)):
-                    cur_unit[1] -= self.unit_grad[1]
+                    cur_unit[1] -= unit_grad[1]
                 elif Decimal(j + 1) > (self.dims[1] / Decimal(2)):
-                    cur_unit[1] += self.unit_grad[1]
+                    cur_unit[1] += unit_grad[1]
                 else:
                     pass
             else:
                 cur_unit_pos[1] += CheckerBoard.locations[self.origin][1]*\
                                    cur_unit[1]
-                cur_unit[1] += self.unit_grad[1]
-        Surface.unlock()
+                cur_unit[1] += unit_grad[1]
 
-    def reset(self, cur_phase=None):
-        if cur_phase == None:
-            cur_phase = self.phase
-        self.cur_phase = cur_phase
+        for prerender in prerenders:
+            prerender.unlock()
 
-    def anim(self, Surface, position=None, fps=DEFAULT_FPS):
-        self.draw(Surface, position)
-        if self.freq != 0:
-            fpp = fps / self.freq
-            self.cur_phase += 360 / fpp
-            if self.cur_phase >= 360:
-                self.cur_phase -= 360
+        self._prerenders = tuple(prerenders)
+        self._prerendered = True
+
+    def draw(self, Surface, position=None, always_redraw=False):
+        """Draws appropriate prerender depending on current phase."""
+        if not self._prerendered or always_redraw:
+            self.prerender()
+        if position == None:
+            position = self.position
+        dest = pygame.Rect((0, 0), self._size)
+        setattr(dest, self.origin, position)
+        self._cur_phase %= 360
+        if 0 <= self._cur_phase < 180:
+            Surface.blit(self._prerenders[0], dest)
+        elif 180 <= self._cur_phase < 360:
+            Surface.blit(self._prerenders[1], dest)
+
+    def lazydraw(self, Surface, position=None):
+        """Only draws on color reversal."""
+        if ((180 <= self._cur_phase < 360 and 0 <= self._prev_phase < 180) or 
+            (0 <= self._cur_phase < 180 and 180 <= self._prev_phase < 360) or
+            self._first_draw):
+            self.draw(Surface, position)
+        if self._first_draw:
+            self._first_draw = False
 
 def display_anim(proj, fullscreen=False):
     pygame.display.init()
@@ -254,11 +292,10 @@ def display_anim(proj, fullscreen=False):
             if event.type == KEYDOWN:
                 if event.key == K_ESCAPE:
                     pygame.display.quit()
-                    return                
-        screen.lock()
+                    return
         for board in proj.boards:
-            board.anim(screen, fps=proj.fps)
-        screen.unlock()
+            board.lazydraw(screen)
+            board.update(proj.fps)
         pygame.display.flip()
         pygame.time.wait(0)
 
@@ -299,10 +336,9 @@ def export_anim(proj, export_dir, export_fmt=None, folder=True, cmd_mode=True):
         board.reset()
 
     while count < frames:
-        screen.lock()
         for board in proj.boards:
-            board.anim(screen, fps=proj.fps)
-        screen.unlock()
+            board.lazydraw(screen)
+            board.update(proj.fps)
         savepath = os.path.join(export_dir, 
                                 '{0}{2}.{1}'.
                                 format(proj.name, export_fmt,
@@ -439,8 +475,6 @@ class CkgCmd(cmd.Cmd):
         if noflags:
             print "no options specified, please specify at least one"
             CkgCmd.set_parser.print_usage()
-        else:
-            self.cur_proj.dirty = True
 
     mk_parser = CmdParser(add_help=False, prog='mk',
                           description='''Makes a new checkerboard with the 
@@ -555,7 +589,7 @@ class CkgCmd(cmd.Cmd):
             val = getattr(args, name)
             if val != None:
                 for x in args.idlist:
-                    self.cur_proj.boards[x].edit(name, val)
+                    setattr(self.cur_proj.boards[x], name, val)
                 noflags = False
         if noflags:
             print "no options specified, please specify at least one"
