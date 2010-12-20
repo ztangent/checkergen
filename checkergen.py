@@ -4,6 +4,7 @@ import os
 import sys
 import copy
 import textwrap
+import re
 import readline
 import argparse
 import cmd
@@ -11,11 +12,13 @@ import shlex
 import threading
 import math
 from decimal import *
+from xml.dom import minidom
 
 import pygame
 from pygame.locals import *
 
 CKG_FMT = 'ckg'
+XML_NAMESPACE = 'http://github.com/ZOMGxuan/checkergen'
 DEFAULT_NAME = 'untitled'
 DEFAULT_FPS = 60
 DEFAULT_RES = 800, 600
@@ -23,6 +26,13 @@ DEFAULT_BG = Color(127, 127, 127)
 EXPORT_FMTS = ['bmp', 'tga', 'jpg', 'png']
 DEFAULT_EXPORT_FMT = 'png'
 MAX_EXPORT_FRAMES = 10000
+
+class FileFormatError(Exception):
+    """Raised when correct file format/extension is not supplied."""
+    def __init__(self, msg):
+        self.msg = msg
+    def __str__(self):
+        return self.msg
 
 def gcd(a, b):
     """Return greatest common divisor using Euclid's Algorithm."""
@@ -57,15 +67,25 @@ def yn_parse(s):
         return False
     else:
         msg = "only 'y','n' or variants accepted"
-        raise TypeError(msg)
+        raise ValueError(msg)
+
+def to_decimal(s):
+    """ValueError raising Decimal converter."""
+    try:
+        return Decimal(s)
+    except InvalidOperation:
+        try:
+            return Decimal(str(s))
+        except InvalidOperation:
+            raise ValueError
 
 def col_cast(s, sep=','):
-    """Tries to cast a string to a Color"""
+    """Tries to cast a string to a Color."""
     try:
         c = Color(s)
     except ValueError:
         c = Color(*[int(x) for x in s.split(sep)])
-    return c                        
+    return c
 
 def store_tuple(nargs, sep, typecast=None, castargs=[]):
     """Retuns argparse action that stores a tuple."""
@@ -76,37 +96,61 @@ def store_tuple(nargs, sep, typecast=None, castargs=[]):
                 msg = ("argument '{f}' should be a list of " + 
                        "{nargs} values separated by '{sep}'").\
                        format(f=self.dest,nargs=nargs,sep=sep)
-                raise argparse.ArgumentTypeError(msg)
+                raise argparse.ArgumentError(self, msg)
             if typecast != None:
                 for n, val in enumerate(vallist):
                     try:
                         val = typecast(*([val] + castargs))
                         vallist[n] = val
-                    except (ValueError, TypeError, InvalidOperation):
+                    except (ValueError, TypeError):
                         msg = ("element '{val}' of argument '{f}' " +
                                "is of the wrong type").\
                                format(val=vallist[n],f=self.dest)
-                        raise argparse.ArgumentTypeError(msg)
+                        raise argparse.ArgumentError(self, msg)
             setattr(args, self.dest, tuple(vallist))
     return TupleAction
 
+# Some XML helper functions
+def getXMLval(parent, namespace, name):
+    """Returns concatenated text node values inside an element."""
+    element = parent.getElementsByTagNameNS(namespace, name)[0]
+    textlist = []
+    for node in element.childNodes:
+        if node.nodeType == node.TEXT_NODE:
+            textlist.append(node.data)
+    return ''.join(textlist)
+
+def setXMLval(document, parent, name, value):
+    """Creates a DOM element with name and stores value as a text node."""
+    element = document.createElement(name)
+    parent.appendChild(element)
+    text = document.createTextNode(value)
+    element.appendChild(text)
+
+def really_pretty_print(document, indent):
+    """Hack to prettify minidom's not so pretty print."""
+    ugly_xml = document.toprettyxml(indent=indent)
+    prettifier_re = re.compile('>\n\s+([^<>\s].*?)\n\s+</', re.DOTALL)    
+    pretty_xml = prettifier_re.sub('>\g<1></', ugly_xml)
+    return pretty_xml
+
 class CkgProj:
-    
+    """Defines a checkergen project, with checkerboards and other settings."""
+
     def __init__(self, name=DEFAULT_NAME, fps=DEFAULT_FPS, res=DEFAULT_RES, 
                  bg=DEFAULT_BG, export_fmt=DEFAULT_EXPORT_FMT, path=None):
         if path != None:
             self.load(path)
             return
         self.name = str(name)
-        self.fps = Decimal(str(fps))
+        self.fps = to_decimal(fps)
         self.res = tuple([int(d) for d in res])
         self.bg = bg
-        self.bg.set_length(3)
         if export_fmt in EXPORT_FMTS:
             self.export_fmt = export_fmt
         else:
             msg = 'image format not recognized or supported'
-            raise TypeError(msg)
+            raise FileFormatError(msg)
         self.boards = []
 
     def __setattr__(self, name, value):
@@ -115,13 +159,70 @@ class CkgProj:
             self.dirty = True
 
     def load(self, path):
-        # TODO: Extension checking
-        self.name = os.path.splitext(os.path.basename(path))[0]
-        self.dirty = False        
+        name, ext = os.path.splitext(os.path.basename(path))
+        if ext == '.{0}'.format(CKG_FMT):
+            self.name = name
+        else:
+            msg = "path lacks '.{0}' extension".format(CKG_FMT)
+            raise FileFormatError(msg)
+
+        with open(path, 'r') as project_file:
+            doc = minidom.parse(project_file)
+
+        project = doc.documentElement
+        for var in ['fps', 'res', 'bg', 'export_fmt']:
+            value = eval(getXMLval(project, XML_NAMESPACE, var))
+            setattr(self, var, value)
+        self.bg = Color(*self.bg)
+        board_nodes = project.getElementsByTagNameNS(XML_NAMESPACE, 'board')
+        self.boards = []
+        for node in board_nodes:
+            dims = eval(getXMLval(node, XML_NAMESPACE, 'dims'))
+            init_unit = eval(getXMLval(node, XML_NAMESPACE, 'init_unit'))
+            end_unit = eval(getXMLval(node, XML_NAMESPACE, 'end_unit'))
+            position = eval(getXMLval(node, XML_NAMESPACE, 'position'))
+            origin = eval(getXMLval(node, XML_NAMESPACE, 'origin'))
+            cols = eval(getXMLval(node, XML_NAMESPACE, 'cols'))
+            cols = [Color(*col) for col in cols]
+            freq = eval(getXMLval(node, XML_NAMESPACE, 'freq'))
+            phase = eval(getXMLval(node, XML_NAMESPACE, 'phase'))
+            newboard = CheckerBoard(dims=dims,
+                                    init_unit=init_unit,
+                                    end_unit=end_unit,
+                                    position=position,
+                                    origin=origin,
+                                    cols=cols,
+                                    freq=freq,
+                                    phase=phase)
+            self.boards.append(newboard)
+
+        self.dirty = False
 
     def save(self, path):
-        self.name = os.path.splitext(os.path.basename(path))[0]
+        self.name, ext = os.path.splitext(os.path.basename(path))
+        if ext != '.{0}'.format(CKG_FMT):
+            path = '{0}.{1}'.format(path, CKG_FMT)
+
+        impl = minidom.getDOMImplementation()
+        doc = impl.createDocument(XML_NAMESPACE, 'project', None)
+        project = doc.documentElement
+        # Hack below because minidom doesn't support namespaces properly
+        project.setAttribute('xmlns', XML_NAMESPACE)
+        for var in ['fps', 'res', 'bg', 'export_fmt']:
+            setXMLval(doc, project, var, repr(getattr(self, var)))
+        for board in self.boards:
+            board_el = doc.createElement('board')
+            project.appendChild(board_el)
+            for var in ['dims', 'init_unit', 'end_unit', 'position',
+                        'origin', 'cols', 'freq', 'phase']:
+                setXMLval(doc, board_el, var, repr(getattr(board, var)))
+
+        with open(path, 'w') as project_file:
+            project_file.write(really_pretty_print(doc,indent='    '))
+
         self.dirty = False
+
+        return path
         
 class CheckerBoard:
 
@@ -134,16 +235,16 @@ class CheckerBoard:
     def __init__(self, dims, init_unit, end_unit, position, origin, 
                  cols, freq, phase=0):
         self.dims = tuple([int(x) for x in dims])
-        self.init_unit = tuple([Decimal(str(x)) for x in init_unit])
-        self.end_unit = tuple([Decimal(str(x)) for x in end_unit])
-        self.position = tuple([Decimal(str(x)) for x in position])
+        self.init_unit = tuple([to_decimal(x) for x in init_unit])
+        self.end_unit = tuple([to_decimal(x) for x in end_unit])
+        self.position = tuple([to_decimal(x) for x in position])
         if origin in CheckerBoard.locations and type(origin) == str:
             self.origin = origin
         else:
             raise TypeError
         self.cols = tuple(cols)
-        self.freq = Decimal(str(freq))
-        self.phase = Decimal(str(phase))
+        self.freq = to_decimal(freq)
+        self.phase = to_decimal(phase)
         self.reset()
 
     def __setattr__(self, name, value):
@@ -180,7 +281,7 @@ class CheckerBoard:
                                CheckerBoard.locations[self.origin])])
 
         # Set initial values
-        init_pos = [Decimal(0), Decimal(0)]
+        init_pos = [to_decimal(0), to_decimal(0)]
         init_unit = [c + m/2 for c, m in zip(self.init_unit, unit_grad)]
         for n, v in enumerate(CheckerBoard.locations[self.origin]):
             if v == 0:
@@ -211,9 +312,9 @@ class CheckerBoard:
                 # Increase x values
                 if CheckerBoard.locations[self.origin][0] == 0:
                     cur_unit_pos[0] += cur_unit[0]
-                    if Decimal(i + 1) < (self.dims[0] / Decimal(2)):
+                    if to_decimal(i + 1) < (self.dims[0] / to_decimal(2)):
                         cur_unit[0] -= unit_grad[0]
-                    elif Decimal(i + 1) > (self.dims[0] / Decimal(2)):
+                    elif to_decimal(i + 1) > (self.dims[0] / to_decimal(2)):
                         cur_unit[0] += unit_grad[0]
                     else:
                         pass
@@ -229,9 +330,9 @@ class CheckerBoard:
             # Increase y values
             if CheckerBoard.locations[self.origin][1] == 0:
                 cur_unit_pos[1] += cur_unit[1]
-                if Decimal(j + 1) < (self.dims[1] / Decimal(2)):
+                if to_decimal(j + 1) < (self.dims[1] / to_decimal(2)):
                     cur_unit[1] -= unit_grad[1]
-                elif Decimal(j + 1) > (self.dims[1] / Decimal(2)):
+                elif to_decimal(j + 1) > (self.dims[1] / to_decimal(2)):
                     cur_unit[1] += unit_grad[1]
                 else:
                     pass
@@ -349,9 +450,17 @@ def export_anim(proj, export_dir, export_fmt=None, folder=True, cmd_mode=True):
         print "Export done."
         pygame.display.quit()
 
+class CmdParserError(Exception):
+    """To be raised when CmdParser encounters an error."""
+    def __init__(self, msg):
+        self.msg = msg
+    def __str__(self):
+            return self.msg
+
 class CmdParser(argparse.ArgumentParser):
-    def error(self, message):
-        raise SyntaxError(message)
+    """Override ArgumentParser so that it doesn't exit."""
+    def error(self, msg):
+        raise CmdParserError(msg)
         
 class CkgCmd(cmd.Cmd):
 
@@ -370,7 +479,7 @@ class CkgCmd(cmd.Cmd):
                     self.do_save('')
                 break
             except TypeError:
-                print str(sys.exc_info()[1])
+                print str(sys.exc_value)
             except EOFError:
                 return True
 
@@ -395,7 +504,14 @@ class CkgCmd(cmd.Cmd):
             return
         if self.save_check():
             return
-        self.cur_proj = CkgProj(path=path)
+        try:
+            self.cur_proj = CkgProj(path=path)
+        except FileFormatError:
+            print "error:", str(sys.exc_value)
+            return
+        except IOError:
+            print "error:", str(sys.exc_value)
+            return
         os.chdir(os.path.dirname(os.path.abspath(path)))
         print 'project \'{0}\' loaded'.format(self.cur_proj.name)
 
@@ -421,14 +537,16 @@ class CkgCmd(cmd.Cmd):
         if os.path.isdir(path):
             path = os.path.join(path, '.'.join([self.cur_proj.name, CKG_FMT]))
         elif os.path.isdir(os.path.dirname(path)):
-            if path[-4:] != ('.' + CKG_FMT):
-                print 'error: specified filepath lacks \'.{0}\' extension'.\
-                      format(CKG_FMT)
-                return
+            pass
         else:
             print 'error: specified directory does not exist'
             return
-        self.cur_proj.save(path)
+        # project save will add file extension if necessary
+        try:
+            path = self.cur_proj.save(path)
+        except IOError:
+            print "error:", str(sys.exc_value)
+            return
         print 'project saved to "{0}"'.format(path)
 
     set_parser = CmdParser(add_help=False, prog='set',
@@ -436,7 +554,7 @@ class CkgCmd(cmd.Cmd):
     set_parser.add_argument('--name', help='''project name, always the same as
                                               the filename without
                                               the extension''')
-    set_parser.add_argument('--fps', type=Decimal,
+    set_parser.add_argument('--fps', type=to_decimal,
                             help='''number of animation frames
                                     rendered per second''')
     set_parser.add_argument('--res', action=store_tuple(2, ',', int),
@@ -459,11 +577,9 @@ class CkgCmd(cmd.Cmd):
             self.do_new('')
         try:
             args = CkgCmd.set_parser.parse_args(shlex.split(line))
-        except (SyntaxError, InvalidOperation,
-                argparse.ArgumentError, argparse.ArgumentTypeError):
-            print "error:", str(sys.exc_info()[1])
-            if sys.exc_info()[0] in (SyntaxError, argparse.ArgumentError):
-                CkgCmd.set_parser.print_usage()
+        except CmdParserError:
+            print "error:", str(sys.exc_value)
+            CkgCmd.set_parser.print_usage()
             return
         names = public_dir(args)
         noflags = True
@@ -479,14 +595,14 @@ class CkgCmd(cmd.Cmd):
     mk_parser = CmdParser(add_help=False, prog='mk',
                           description='''Makes a new checkerboard with the 
                                          given parameters.''')
-    mk_parser.add_argument('dims', action=store_tuple(2, ',', Decimal),
+    mk_parser.add_argument('dims', action=store_tuple(2, ',', to_decimal),
                            help='''width,height of checkerboard in no. of 
                                    unit cells''')
-    mk_parser.add_argument('init_unit', action=store_tuple(2, ',', Decimal),
+    mk_parser.add_argument('init_unit', action=store_tuple(2, ',', to_decimal),
                            help='width,height of initial unit cell in pixels')
-    mk_parser.add_argument('end_unit', action=store_tuple(2, ',', Decimal),
+    mk_parser.add_argument('end_unit', action=store_tuple(2, ',', to_decimal),
                            help='width,height of final unit cell in pixels')
-    mk_parser.add_argument('position', action=store_tuple(2, ',', Decimal),
+    mk_parser.add_argument('position', action=store_tuple(2, ',', to_decimal),
                            help='x,y position of checkerboard in pixels')
     mk_parser.add_argument('origin', choices=CheckerBoard.locations,
                            help='''location of origin point of checkerboard
@@ -496,9 +612,9 @@ class CkgCmd(cmd.Cmd):
                            help='''color1,color2 of the checkerboard
                                    (color format: R;G;B or name, 
                                    component range from 0-255)''')
-    mk_parser.add_argument('freq', type=Decimal,
+    mk_parser.add_argument('freq', type=to_decimal,
                            help='frequency of color reversal in Hz')
-    mk_parser.add_argument('phase', type=Decimal, nargs='?', default='0',
+    mk_parser.add_argument('phase', type=to_decimal, nargs='?', default='0',
                            help='initial phase of animation in degrees')
 
     def help_mk(self):
@@ -511,11 +627,9 @@ class CkgCmd(cmd.Cmd):
             self.do_new('')
         try:
             args = CkgCmd.mk_parser.parse_args(shlex.split(line))
-        except (SyntaxError, InvalidOperation,
-                argparse.ArgumentError, argparse.ArgumentTypeError):
-            print "error:", str(sys.exc_info()[1])
-            if sys.exc_info()[0] in (SyntaxError, argparse.ArgumentError):
-                CkgCmd.mk_parser.print_usage()
+        except CmdParserError:
+            print "error:", str(sys.exc_value)
+            CkgCmd.mk_parser.print_usage()
             return
         newboard = CheckerBoard(dims=args.dims,
                                 init_unit=args.init_unit,
@@ -534,16 +648,19 @@ class CkgCmd(cmd.Cmd):
                                          specified by ids.''')
     ed_parser.add_argument('idlist', nargs='+', metavar='id', type=int,
                            help='ids of checkerboards to be edited')
-    ed_parser.add_argument('--dims', action=store_tuple(2, ',', Decimal),
+    ed_parser.add_argument('--dims', action=store_tuple(2, ',', to_decimal),
                            help='checkerboard dimensions in unit cells',
                            metavar='WIDTH,HEIGHT')
-    ed_parser.add_argument('--init_unit', action=store_tuple(2, ',', Decimal),
+    ed_parser.add_argument('--init_unit',
+                           action=store_tuple(2, ',', to_decimal),
                            help='initial unit cell dimensions in pixels',
                            metavar='WIDTH,HEIGHT')
-    ed_parser.add_argument('--end_unit', action=store_tuple(2, ',', Decimal),
+    ed_parser.add_argument('--end_unit',
+                           action=store_tuple(2, ',', to_decimal),
                            help='final unit cell dimensions in pixels',
                            metavar='WIDTH,HEIGHT')
-    ed_parser.add_argument('--position', action=store_tuple(2, ',', Decimal),
+    ed_parser.add_argument('--position',
+                           action=store_tuple(2, ',', to_decimal),
                            help='position of checkerboard in pixels',
                            metavar='X,Y')
     ed_parser.add_argument('--origin', choices=CheckerBoard.locations,
@@ -555,9 +672,9 @@ class CkgCmd(cmd.Cmd):
                            help='''checkerboard colors (color format:
                                    R;G;B or name, component range 
                                    from 0-255)''')
-    ed_parser.add_argument('--freq', type=Decimal,
+    ed_parser.add_argument('--freq', type=to_decimal,
                            help='frequency of color reversal in Hz')
-    ed_parser.add_argument('--phase', type=Decimal,
+    ed_parser.add_argument('--phase', type=to_decimal,
                            help='initial phase of animation in degrees')
 
     def help_ed(self):
@@ -570,11 +687,9 @@ class CkgCmd(cmd.Cmd):
             return
         try:
             args = CkgCmd.ed_parser.parse_args(shlex.split(line))
-        except (SyntaxError, InvalidOperation,
-                argparse.ArgumentError, argparse.ArgumentTypeError):
-            print "error:", str(sys.exc_info()[1])
-            if sys.exc_info()[0] in (SyntaxError, argparse.ArgumentError):
-                CkgCmd.ed_parser.print_usage()
+        except CmdParserError:
+            print "error:", str(sys.exc_value)
+            CkgCmd.ed_parser.print_usage()
             return
         for x in args.idlist[:]:
             if x >= len(self.cur_proj.boards) or x < 0:
@@ -615,11 +730,9 @@ class CkgCmd(cmd.Cmd):
             return
         try:
             args = CkgCmd.rm_parser.parse_args(shlex.split(line))
-        except (SyntaxError, InvalidOperation,
-                argparse.ArgumentError, argparse.ArgumentTypeError):
-            print "error:", str(sys.exc_info()[1])
-            if sys.exc_info()[0] in (SyntaxError, argparse.ArgumentError):
-                CkgCmd.rm_parser.print_usage()
+        except CmdParserError:
+            print "error:", str(sys.exc_value)
+            CkgCmd.rm_parser.print_usage()
             return
         rmlist = []
         if args.all:
@@ -671,11 +784,9 @@ class CkgCmd(cmd.Cmd):
             return
         try:
             args = CkgCmd.ls_parser.parse_args(shlex.split(line))
-        except (SyntaxError, InvalidOperation,
-                argparse.ArgumentError, argparse.ArgumentTypeError):
-            print "error:", str(sys.exc_info()[1])
-            if sys.exc_info()[0] in (SyntaxError, argparse.ArgumentError):
-                CkgCmd.ls_parser.print_usage()
+        except CmdParserError:
+            print "error:", str(sys.exc_value)
+            CkgCmd.ls_parser.print_usage()
             return
 
         for x in args.idlist[:]:
@@ -748,11 +859,9 @@ class CkgCmd(cmd.Cmd):
             return
         try:
             args = CkgCmd.display_parser.parse_args(shlex.split(line))
-        except (SyntaxError, InvalidOperation,
-                argparse.ArgumentError, argparse.ArgumentTypeError):
-            print "error:", str(sys.exc_info()[1])
-            if sys.exc_info()[0] in (SyntaxError, argparse.ArgumentError):
-                CkgCmd.display_parser.print_usage()
+        except CmdParserError:
+            print "error:", str(sys.exc_value)
+            CkgCmd.display_parser.print_usage()
             return
         for thread in threading.enumerate():
             if thread.name == 'display_thread':
@@ -787,11 +896,9 @@ class CkgCmd(cmd.Cmd):
             return
         try:
             args = CkgCmd.export_parser.parse_args(shlex.split(line))
-        except (SyntaxError, InvalidOperation,
-                argparse.ArgumentError, argparse.ArgumentTypeError):
-            print "error:", str(sys.exc_info()[1])
-            if sys.exc_info()[0] in (SyntaxError, argparse.ArgumentError):
-                CkgCmd.export_parser.print_usage()
+        except CmdParserError:
+            print "error:", str(sys.exc_value)
+            CkgCmd.export_parser.print_usage()
             return
         export_anim(self.cur_proj, args.dir, args.export_fmt, args.nofolder)
 
