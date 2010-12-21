@@ -9,6 +9,7 @@ import readline
 import argparse
 import cmd
 import shlex
+import time
 import threading
 import math
 from decimal import *
@@ -26,13 +27,6 @@ DEFAULT_BG = Color(127, 127, 127)
 EXPORT_FMTS = ['bmp', 'tga', 'jpg', 'png']
 DEFAULT_EXPORT_FMT = 'png'
 MAX_EXPORT_FRAMES = 10000
-
-class FileFormatError(Exception):
-    """Raised when correct file format/extension is not supplied."""
-    def __init__(self, msg):
-        self.msg = msg
-    def __str__(self):
-        return self.msg
 
 def gcd(a, b):
     """Return greatest common divisor using Euclid's Algorithm."""
@@ -134,6 +128,57 @@ def really_pretty_print(document, indent):
     pretty_xml = prettifier_re.sub('>\g<1></', ugly_xml)
     return pretty_xml
 
+class FileFormatError(Exception):
+    """Raised when correct file format/extension is not supplied."""
+    def __init__(self, msg):
+        self.msg = msg
+    def __str__(self):
+        return self.msg
+
+class Timer:
+    """High-res timer that should be cross-platform."""
+    def __init__(self):
+        if os.name == 'nt':
+            time.clock()
+        self.running = False
+        
+    def start(self):
+        if os.name == 'nt':
+            self.start_time = time.clock()
+        elif os.name == 'posix':
+            self.start_time = time.time()
+        self.running = True
+
+    def stop(self):
+        if not self.running:
+            return -1
+        if os.name == 'nt':
+            self.stop_time = time.clock()
+        elif os.name == 'posix':
+            self.stop_time = time.time()
+        self.running = False
+        return self.stop_time - self.start_time
+
+    def elapsed(self):
+        if not self.running:
+            return -1
+        if os.name == 'nt':
+            cur_time = time.clock()
+        elif os.name == 'posix':
+            cur_time = time.time()
+        return cur_time - self.start_time
+
+    def tick(self, fps):
+        """Limits loop to specified fps. To be placed at start of loop."""
+        fps = float(fps)
+        ret = self.elapsed()
+        if self.elapsed() != -1:
+            while self.elapsed() < (1.0 / fps):
+                pass
+        self.start()
+        if ret != -1:
+            return ret * 1000
+        
 class CkgProj:
     """Defines a checkergen project, with checkerboards and other settings."""
 
@@ -258,6 +303,8 @@ class CheckerBoard:
         self._cur_phase = new_phase
         self._prev_phase = new_phase
         self._first_draw = True
+        if not self._prerendered:
+            self.prerender()
 
     def update(self, fps=DEFAULT_FPS):
         self._prev_phase = self._cur_phase
@@ -370,16 +417,19 @@ class CheckerBoard:
         if self._first_draw:
             self._first_draw = False
 
-def display_anim(proj, fullscreen=False):
+def display_anim(proj, fullscreen=False, highrestime=True):
     pygame.display.init()
     if fullscreen:
         screen = pygame.display.set_mode(proj.res,
                                          FULLSCREEN | HWSURFACE | DOUBLEBUF)
     else:
-        screen = pygame.display.set_mode(proj.res)
+        screen = pygame.display.set_mode(proj.res, DOUBLEBUF)
     screen.fill(proj.bg)
-    pygame.display.set_caption('checkergen')    
-    clock = pygame.time.Clock()
+    pygame.display.set_caption('checkergen')
+    if not highrestime:
+        clock = pygame.time.Clock()
+    else:
+        clock = Timer()
 
     for board in proj.boards:
         board.reset()
@@ -398,7 +448,8 @@ def display_anim(proj, fullscreen=False):
             board.lazydraw(screen)
             board.update(proj.fps)
         pygame.display.flip()
-        pygame.time.wait(0)
+        if not highrestime:
+            pygame.time.wait(0)
 
 def export_anim(proj, export_dir, export_fmt=None, folder=True, cmd_mode=True):
     if not os.path.isdir(export_dir):
