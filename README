@@ -1,4 +1,4 @@
 This is a simple program which generates flashing checkerboard
-patterns for use in psychophysics experiments. A GUI is provided for
+patterns for use in psychophysics experiments. A CLI is provided for
 quick setting of parameters, and output either to screen or file is
 provided.
