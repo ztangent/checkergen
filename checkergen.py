@@ -863,14 +863,16 @@ class CkgCmd(cmd.Cmd):
             print "error:", str(sys.exc_value)
             CkgCmd.display_parser.print_usage()
             return
-        for thread in threading.enumerate():
-            if thread.name == 'display_thread':
-                print 'error: animation is already being displayed'
-                return
-        else:
-            threading.Thread(target=display_anim, name='display_thread',
-                             args=[copy.deepcopy(self.cur_proj),
-                                   args.fullscreen]).start()
+        display_anim(self.cur_proj, args.fullscreen)
+        # pygame rendering within a thread is broken, comment out for now
+        ## for thread in threading.enumerate():
+        ##     if thread.name == 'display_thread':
+        ##         print 'error: animation is already being displayed'
+        ##         return
+        ## else:
+        ##     threading.Thread(target=display_anim, name='display_thread',
+        ##                      args=[copy.deepcopy(self.cur_proj),
+        ##                            args.fullscreen]).start()
 
     export_parser = CmdParser(add_help=False, prog='export',
                               description='''Exports animation as an image
