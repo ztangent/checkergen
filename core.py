@@ -118,6 +118,80 @@ class CkgProj:
         self.dirty = False
 
         return path
+
+    def display(self, fullscreen=False, highrestime=False):
+        pygame.display.init()
+        if fullscreen:
+            screen = pygame.display.set_mode(self.res,
+                                             FULLSCREEN | 
+                                             HWSURFACE | 
+                                             DOUBLEBUF)
+        else:
+            screen = pygame.display.set_mode(self.res, DOUBLEBUF)
+        screen.fill(self.bg)
+        pygame.display.set_caption('checkergen')
+        if not highrestime:
+            clock = pygame.time.Clock()
+        else:
+            clock = Timer()
+
+        for board in self.boards:
+            board.reset()
+
+        while True:
+            clock.tick(self.fps)
+            for event in pygame.event.get():
+                if event.type == QUIT:
+                    pygame.display.quit()
+                    return
+                if event.type == KEYDOWN:
+                    if event.key == K_ESCAPE:
+                        pygame.display.quit()
+                        return
+            for board in self.boards:
+                board.lazydraw(screen)
+                board.update(self.fps)
+            pygame.display.flip()
+            if not highrestime:
+                pygame.time.wait(0)
+
+    def export(self, export_dir, export_fmt=None, folder=True, force=False):
+        if not os.path.isdir(export_dir):
+                msg = 'export path is not a directory'
+                raise IOError(msg)
+        if export_fmt == None:
+            export_fmt = self.export_fmt
+        screen = pygame.Surface(self.res)
+        screen.fill(self.bg)
+        fpps = [self.fps / board.freq for board in 
+                self.boards if board.freq != 0]
+        frames = reduce(lcm, fpps)
+        count = 0
+
+        if frames > MAX_EXPORT_FRAMES and not force:
+            msg = 'large number ({0}) of frames to be exported'.\
+                format(MAX_EXPORT_FRAMES)
+            raise FrameOverflowError(msg)
+
+        if folder:
+            export_dir = os.path.join(export_dir, self.name)
+            if not os.path.isdir(export_dir):
+                os.mkdir(export_dir)
+
+        for board in self.boards:
+            board.reset()
+
+        while count < frames:
+            for board in self.boards:
+                board.lazydraw(screen)
+                board.update(self.fps)
+            savepath = \
+                os.path.join(export_dir, 
+                             '{0}{2}.{1}'.
+                             format(self.name, export_fmt,
+                                    repr(count).zfill(numdigits(frames-1))))
+            pygame.image.save(screen, savepath)
+            count += 1
         
 class CheckerBoard:
 
@@ -266,73 +340,3 @@ class CheckerBoard:
             self.draw(Surface, position)
         if self._first_draw:
             self._first_draw = False
-
-def display_anim(proj, fullscreen=False, highrestime=True):
-    pygame.display.init()
-    if fullscreen:
-        screen = pygame.display.set_mode(proj.res,
-                                         FULLSCREEN | HWSURFACE | DOUBLEBUF)
-    else:
-        screen = pygame.display.set_mode(proj.res, DOUBLEBUF)
-    screen.fill(proj.bg)
-    pygame.display.set_caption('checkergen')
-    if not highrestime:
-        clock = pygame.time.Clock()
-    else:
-        clock = Timer()
-
-    for board in proj.boards:
-        board.reset()
-
-    while True:
-        clock.tick(proj.fps)
-        for event in pygame.event.get():
-            if event.type == QUIT:
-                pygame.display.quit()
-                return
-            if event.type == KEYDOWN:
-                if event.key == K_ESCAPE:
-                    pygame.display.quit()
-                    return
-        for board in proj.boards:
-            board.lazydraw(screen)
-            board.update(proj.fps)
-        pygame.display.flip()
-        if not highrestime:
-            pygame.time.wait(0)
-
-def export_anim(proj, export_dir, export_fmt=None, folder=True, force=False):
-    if not os.path.isdir(export_dir):
-            msg = 'export path is not a directory'
-            raise IOError(msg)
-    if export_fmt == None:
-        export_fmt = proj.export_fmt
-    screen = pygame.Surface(proj.res)
-    screen.fill(proj.bg)
-    fpps = [proj.fps / board.freq for board in proj.boards if board.freq != 0]
-    frames = reduce(lcm, fpps)
-    count = 0
-
-    if frames > MAX_EXPORT_FRAMES and not force:
-        msg = 'large number ({0}) of frames to be exported'.\
-            format(MAX_EXPORT_FRAMES)
-        raise FrameOverflowError(msg)
-
-    if folder:
-        export_dir = os.path.join(export_dir, proj.name)
-        if not os.path.isdir(export_dir):
-            os.mkdir(export_dir)
-
-    for board in proj.boards:
-        board.reset()
-
-    while count < frames:
-        for board in proj.boards:
-            board.lazydraw(screen)
-            board.update(proj.fps)
-        savepath = os.path.join(export_dir, 
-                                '{0}{2}.{1}'.
-                                format(proj.name, export_fmt,
-                                       repr(count).zfill(numdigits(frames-1))))
-        pygame.image.save(screen, savepath)
-        count += 1

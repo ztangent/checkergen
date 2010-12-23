@@ -501,7 +501,7 @@ class CkgCmd(cmd.Cmd):
             print "error:", str(sys.exc_value)
             self.__class__.display_parser.print_usage()
             return
-        core.display_anim(self.cur_proj, args.fullscreen)
+        self.cur_proj.display(args.fullscreen)
         # pygame rendering within a thread is broken, comment out for now
         ## for thread in threading.enumerate():
         ##     if thread.name == 'display_thread':
@@ -522,7 +522,8 @@ class CkgCmd(cmd.Cmd):
     export_parser.add_argument('--fmt', dest='export_fmt',
                                choices=core.EXPORT_FMTS,
                                help='image format for export')
-    export_parser.add_argument('-n','--nofolder', action='store_false',
+    export_parser.add_argument('-n','--nofolder',
+                               dest='folder', action='store_false',
                                help='''force images not to exported in 
                                        a containing folder''')
 
@@ -542,8 +543,7 @@ class CkgCmd(cmd.Cmd):
             self.__class__.export_parser.print_usage()
             return        
         try:
-            core.export_anim(self.cur_proj, args.dir, 
-                             args.export_fmt, args.nofolder)
+            self.cur_proj.export(args.dir, args.export_fmt, args.folder)
         except IOError:
             print "error:", str(sys.exc_value)
         except core.FrameOverflowError:
@@ -551,8 +551,8 @@ class CkgCmd(cmd.Cmd):
             while True:
                 try:
                     if self.__class__.yn_parse(raw_input()):
-                        core.export_anim(self.cur_proj, args.dir, 
-                                         args.export_fmt, args.nofolder, True)
+                        self.cur_proj.export(args.dir, args.export_fmt, 
+                                             args.folder, True)
                     break
                 except TypeError:
                     print str(sys.exc_value)
