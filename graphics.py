@@ -15,11 +15,11 @@ locations = {'topleft': (1, -1), 'topright': (-1, -1),
              'midleft': (1, 0), 'midright': (-1, 0),
              'center': (0, 0)}
 
-def clear_to_color(window, color):
-    """Clears the window to a specific color."""
-    window.switch_to()
-    Rect((0, 0), window.get_size()).draw()
-
+def set_clear_color(color=(0, 0, 0)):
+    """Set the color OpenGL contexts such as windows will clear to."""
+    clamped_color = [c / 255.0 for c in color if type(c) == int]
+    glClearColor(*clamped_color, 1.0)
+    
 def get_window_texture(window):
     """Returns color buffer of the specified window as a Texture."""
     window.switch_to()
@@ -34,6 +34,9 @@ def get_window_image_data(window):
         pyglet.image.get_buffer_manager().get_color_buffer().get_image_data()
     return ImageData 
 
+class FramebufferIncompleteError(Exception):
+    pass
+
 class Framebuffer:
 
     # Warning: not compatible with OpenGL 3.1 because of use of EXT
@@ -44,6 +47,7 @@ class Framebuffer:
         glGenFramebuffersEXT(1, ctypes.byref(self.id))
         if Texture != None:
             self.attach_texture(Texture)
+        self._rendering = False
 
     def bind(self):
         """Binds framebuffer to current context."""
@@ -66,10 +70,6 @@ class Framebuffer:
         glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT,
                                   GL_COLOR_ATTACHMENT0_EXT,
                                   GL_TEXTURE_2D, Texture.id, 0)
-        
-        # Check for framebuffer completeness
-        status = glCheckFramebufferStatusEXT(GL_FRAMEBUFFER_EXT)
-        assert status == GL_FRAMEBUFFER_COMPLETE_EXT
 
     def set2D(self):
         """Sets up the framebuffer for 2D rendering."""
@@ -84,22 +84,38 @@ class Framebuffer:
 
     def start_render(self, set2D=True):
         """Sets up rendering environment. To be called before any drawing."""
+        if self._rendering:
+            return
         self.bind()
+        status = glCheckFramebufferStatusEXT(GL_FRAMEBUFFER_EXT)
+        if status != GL_FRAMEBUFFER_COMPLETE_EXT:
+            msg = 'framebuffer incomplete'
+            raise FramebufferIncompleteError(msg)
         glPushAttrib(GL_VIEWPORT_BIT);
         glViewport(0, 0, self.Texture.width, self.Texture.height);
         if set2D:
             self.set2D()
+        self._rendering = True
 
     def end_render(self):
         """Cleans up rendering environment. To be called after drawing."""
+        if not self._rendering:
+            return
         glPopAttrib();
         self.unbind()
+        self._rendering = False
 
-    def render(self, func, args=[], set2D=True):
+    def render(self, func, args=[], set2D=True, end=False):
         """Calls specified function within the rendering environment."""
         self.start_render(set2D)
         func(*args)
-        self.end_render()
+        if end:
+            self.end_render()
+
+    def clear(self):
+        """Clears the framebuffer to the current clear color."""
+        self.start_render(set2D)
+        glClear(gl.GL_COLOR_BUFFER_BIT)
 
 class Rect:
 
@@ -153,9 +169,9 @@ class Rect:
     def gl_draw(self):
         """Draw using raw OpenGL functions."""
         glBegin(GL_TRIANGLES)
-        glColor3ub(*self.col)
+        glColor3ubv(self.col)
         for i in [0, 1, 2, 1, 2, 3]:
-            glVertex2i(*(self.verts()[i]))
+            glVertex2iv(self.verts()[i])
         glEnd()
 
     def add_to_batch(self, Batch):

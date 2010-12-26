@@ -8,14 +8,11 @@ Classes:
 CkgProj -- A checkergen project, contains settings and CheckerBoards.
 CheckerBoard -- A (distorted) checkerboard pattern, can color-flip.
 
-Functions:
-display_anim -- Displays flashing checkerboard patterns on the screen.
-export_anim -- Exports such patterns as an image sequence.
-
 """
 
 import os
 import sys
+import re
 from xml.dom import minidom
 
 import pygame
@@ -66,6 +63,17 @@ class CkgProj:
             self.dirty = True
 
     def load(self, path):
+
+        def xml_get(parent, namespace, name):
+            """Returns concatenated text node values inside an element."""
+            # TODO: fix crashing on messed up namespace
+            element = parent.getElementsByTagNameNS(namespace, name)[0]
+            strings = []
+            for node in element.childNodes:
+                if node.nodeType == node.TEXT_NODE:
+                    strings.append(node.data)
+            return ''.join(strings)
+
         name, ext = os.path.splitext(os.path.basename(path))
         if ext == '.{0}'.format(CKG_FMT):
             self.name = name
@@ -94,6 +102,22 @@ class CkgProj:
         self.dirty = False
 
     def save(self, path):
+
+        def xml_set(document, parent, name, string):
+            """Stores value as a text node in a new DOM element."""
+            element = document.createElement(name)
+            parent.appendChild(element)
+            text = document.createTextNode(string)
+            element.appendChild(text)
+
+        def xml_pretty_print(document, indent):
+            """Hack to prettify minidom's not so pretty print."""
+            ugly_xml = document.toprettyxml(indent=indent)
+            prettifier_re = re.compile('>\n\s+([^<>\s].*?)\n\s+</',
+                                       re.DOTALL)    
+            pretty_xml = prettifier_re.sub('>\g<1></', ugly_xml)
+            return pretty_xml
+
         self.name, ext = os.path.splitext(os.path.basename(path))
         if ext != '.{0}'.format(CKG_FMT):
             path = '{0}.{1}'.format(path, CKG_FMT)

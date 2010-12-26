@@ -2,10 +2,8 @@
 
 import os
 import time
-import re
 import math
 from decimal import *
-from xml.dom import minidom
 
 from pygame.locals import *
 
@@ -55,62 +53,32 @@ def col_cast(s, sep=','):
         c = tuple([int(x) for x in s.split(sep)])
     return c
 
-# XML helper functions
-# TODO: fix crashing on messed up namespace
-def xml_get(parent, namespace, name):
-    """Returns concatenated text node values inside an element."""
-    element = parent.getElementsByTagNameNS(namespace, name)[0]
-    strings = []
-    for node in element.childNodes:
-        if node.nodeType == node.TEXT_NODE:
-            strings.append(node.data)
-    return ''.join(strings)
-
-def xml_set(document, parent, name, string):
-    """Creates a DOM element with name and stores value as a text node."""
-    element = document.createElement(name)
-    parent.appendChild(element)
-    text = document.createTextNode(string)
-    element.appendChild(text)
-
-def xml_pretty_print(document, indent):
-    """Hack to prettify minidom's not so pretty print."""
-    ugly_xml = document.toprettyxml(indent=indent)
-    prettifier_re = re.compile('>\n\s+([^<>\s].*?)\n\s+</', re.DOTALL)    
-    pretty_xml = prettifier_re.sub('>\g<1></', ugly_xml)
-    return pretty_xml
-
 class Timer:
     """High-res timer that should be cross-platform."""
     def __init__(self):
+        # Assigns appropriate clock function based on OS
         if os.name == 'nt':
-            time.clock()
+            self.clock = time.clock
+            self.clock()
+        elif os.name == 'posix':
+            self.clock = time.time
         self.running = False
         
     def start(self):
-        if os.name == 'nt':
-            self.start_time = time.clock()
-        elif os.name == 'posix':
-            self.start_time = time.time()
+        self.start_time = self.clock()
         self.running = True
 
     def stop(self):
         if not self.running:
-            return -1
-        if os.name == 'nt':
-            self.stop_time = time.clock()
-        elif os.name == 'posix':
-            self.stop_time = time.time()
+            return None
+        self.stop_time = self.clock()
         self.running = False
         return self.stop_time - self.start_time
 
     def elapsed(self):
         if not self.running:
-            return -1
-        if os.name == 'nt':
-            cur_time = time.clock()
-        elif os.name == 'posix':
-            cur_time = time.time()
+            return None
+        cur_time = self.clock()
         return cur_time - self.start_time
 
     def tick(self, fps):
