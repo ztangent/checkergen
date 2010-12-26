@@ -15,9 +15,9 @@ import sys
 import re
 from xml.dom import minidom
 
-import pygame
-from pygame.locals import *
+import pyglet
 
+import graphics
 from utils import *
 
 CKG_FMT = 'ckg'
@@ -63,6 +63,7 @@ class CkgProj:
             self.dirty = True
 
     def load(self, path):
+        """Loads project from specified path."""
 
         def xml_get(parent, namespace, name):
             """Returns concatenated text node values inside an element."""
@@ -91,7 +92,7 @@ class CkgProj:
         self.boards = []
         board_els = project.getElementsByTagNameNS(XML_NAMESPACE, 'board')
         board_args = ['dims', 'init_unit', 'end_unit', 'position',
-                      'origin', 'cols', 'freq', 'phase']
+                      'anchor', 'cols', 'freq', 'phase']
         for board_el in board_els:
             board_dict = dict([(arg, eval(xml_get(board_el, 
                                                   XML_NAMESPACE, arg)))
@@ -102,6 +103,7 @@ class CkgProj:
         self.dirty = False
 
     def save(self, path):
+        """Saves project to specified path as an XML document."""
 
         def xml_set(document, parent, name, string):
             """Stores value as a text node in a new DOM element."""
@@ -133,7 +135,7 @@ class CkgProj:
             board_el = doc.createElement('board')
             project.appendChild(board_el)
             for var in ['dims', 'init_unit', 'end_unit', 'position',
-                        'origin', 'cols', 'freq', 'phase']:
+                        'anchor', 'cols', 'freq', 'phase']:
                 xml_set(doc, board_el, var, repr(getattr(board, var)))
 
         with open(path, 'w') as project_file:
@@ -144,40 +146,22 @@ class CkgProj:
         return path
 
     def display(self, fullscreen=False, highrestime=False):
-        pygame.display.init()
-        if fullscreen:
-            screen = pygame.display.set_mode(self.res,
-                                             FULLSCREEN | 
-                                             HWSURFACE | 
-                                             DOUBLEBUF)
-        else:
-            screen = pygame.display.set_mode(self.res, DOUBLEBUF)
-        screen.fill(self.bg)
-        pygame.display.set_caption('checkergen')
-        if not highrestime:
-            clock = pygame.time.Clock()
-        else:
-            clock = Timer()
-
         for board in self.boards:
             board.reset()
 
-        while True:
-            clock.tick(self.fps)
-            for event in pygame.event.get():
-                if event.type == QUIT:
-                    pygame.display.quit()
-                    return
-                if event.type == KEYDOWN:
-                    if event.key == K_ESCAPE:
-                        pygame.display.quit()
-                        return
+        window = pyglet.window.Window(*self.res, fullscreen=fullscreen)
+        window.switch_to()
+        graphics.set_clear_color(self.bg)
+        window.clear()
+
+        while not window.has_exit:
+            window.dispatch_events()
             for board in self.boards:
-                board.lazydraw(screen)
+                board.lazydraw()
                 board.update(self.fps)
-            pygame.display.flip()
-            if not highrestime:
-                pygame.time.wait(0)
+            window.dispatch_events()
+            window.flip()
+        window.close()
 
     def export(self, export_dir, export_fmt=None, folder=True, force=False):
         if not os.path.isdir(export_dir):
@@ -185,8 +169,7 @@ class CkgProj:
                 raise IOError(msg)
         if export_fmt == None:
             export_fmt = self.export_fmt
-        screen = pygame.Surface(self.res)
-        screen.fill(self.bg)
+
         fpps = [self.fps / board.freq for board in 
                 self.boards if board.freq != 0]
         frames = reduce(lcm, fpps)
@@ -205,56 +188,64 @@ class CkgProj:
         for board in self.boards:
             board.reset()
 
+        canvas = pyglet.image.Texture.create(*self.res)
+        fbo = graphics.Framebuffer(canvas)
+        fbo.start_render()
+        graphics.set_clear_color(self.bg)
+        fbo.clear()
+
         while count < frames:
             for board in self.boards:
-                board.lazydraw(screen)
+                board.lazydraw()
                 board.update(self.fps)
             savepath = \
                 os.path.join(export_dir, 
                              '{0}{2}.{1}'.
                              format(self.name, export_fmt,
                                     repr(count).zfill(numdigits(frames-1))))
-            pygame.image.save(screen, savepath)
+            canvas.save(savepath)
             count += 1
+
+        fbo.delete()
         
 class CheckerBoard:
 
-    locations = {'topleft': (1, 1), 'topright': (-1, 1),
-                 'bottomleft': (1, -1), 'bottomright': (-1, -1),
-                 'midtop': (0, 1), 'midbottom': (0, -1),
-                 'midleft': (1, 0), 'midright': (-1, 0),
-                 'center': (0, 0)}
+# TODO: Correct for power of 2 texture sizes
+# TODO: Reimplement mid/center anchor functionality in cool new way
 
-    def __init__(self, dims, init_unit, end_unit, position, origin, 
-                 cols, freq, phase=0):
+    def __init__(self, dims, init_unit, end_unit, position, anchor, 
+                 cols, freq, phase=0, prerender_to_texture=False):
         self.dims = tuple([int(x) for x in dims])
         self.init_unit = tuple([to_decimal(x) for x in init_unit])
         self.end_unit = tuple([to_decimal(x) for x in end_unit])
         self.position = tuple([to_decimal(x) for x in position])
-        if origin in self.__class__.locations and type(origin) == str:
-            self.origin = origin
+        if anchor in graphics.locations and type(anchor) == str:
+            self.anchor = anchor
         else:
             raise TypeError
         self.cols = tuple(cols)
         self.freq = to_decimal(freq)
         self.phase = to_decimal(phase)
+        self.prerender_to_texture = prerender_to_texture
         self.reset()
 
     def __setattr__(self, name, value):
         self.__dict__[name] = value
-        if name in ['dims', 'init_unit', 'end_unit', 'origin','cols']:
-            self._prerendered = False
+        if name in ['dims', 'init_unit', 'end_unit', 'anchor','cols']:
+            self._computed = False
 
     def reset(self, new_phase=None):
+        """Resets checkerboard animation back to initial phase."""
         if new_phase == None:
             new_phase = self.phase
         self._cur_phase = new_phase
         self._prev_phase = new_phase
         self._first_draw = True
-        if not self._prerendered:
-            self.prerender()
+        if not self._computed:
+            self.compute()
 
     def update(self, fps=DEFAULT_FPS):
+        """Increase the current phase of the checkerboard animation."""
         self._prev_phase = self._cur_phase
         if self.freq != 0:
             fpp = fps / self.freq
@@ -262,105 +253,95 @@ class CheckerBoard:
             if self._cur_phase >= 360:
                 self._cur_phase %= 360
 
-    def prerender(self):
-        """Prerenders the checkerboards for quick blitting later."""
-        # Set up prerender surfaces
+    def compute(self):
+        """Computes a model of the checkerboard for drawing later."""
+        # Create batches to store model
+        self._batches = [pyglet.graphics.Batch() for n in range(2)]
+
+        # Calculate size of checkerboard in pixels
         self._size = tuple([(y1 + y2) / 2 * n for y1, y2, n in
                             zip(self.init_unit, self.end_unit, self.dims)])
-        prerenders = [pygame.Surface(self._size) for i in range(2)]
 
-        # Compute unit size gradient
+        # Calculate unit size gradient
         unit_grad = tuple([(2 if (flag == 0) else 1) * 
                            (y2 - y1) / n for y1, y2, n, flag in 
                            zip(self.init_unit, self.end_unit, self.dims,
-                               self.__class__.locations[self.origin])])
+                               graphics.locations[self.anchor])])
 
         # Set initial values
-        init_pos = [to_decimal(0), to_decimal(0)]
+        if self.prerender_to_texture:
+            init_pos = [(1 - a)* s/to_decimal(2) for s, a in 
+                        zip(self._size, graphics.locations[self.anchor])]
+        else:
+            init_pos = list(self.position)
         init_unit = [c + m/2 for c, m in zip(self.init_unit, unit_grad)]
-        for n, v in enumerate(self.__class__.locations[self.origin]):
-            if v == 0:
-                init_unit[n] = self.end_unit[n] - (unit_grad[n] / 2)
-            elif v < 0:
-                init_pos[n] = self._size[n]
         cur_unit = list(init_unit)
         cur_unit_pos = list(init_pos)
 
-        for prerender in prerenders:
-            prerender.lock()
-
-        # Draw unit cells in nested for loop
+        # Add unit cells to batches in nested for loop
         for j in range(self.dims[1]):
             for i in range(self.dims[0]):
-                cur_unit_rect = cur_unit_pos + cur_unit
 
-                # Ensure unit cells are drawn in the right place
-                for n, v in enumerate(self.__class__.locations[self.origin]):
-                    if v < 0:
-                        cur_unit_rect[n] -= cur_unit[n]                
-                cur_unit_rect = [int(round(x)) for x in cur_unit_rect]
-                prerenders[0].fill(self.cols[(i + j) % 2], 
-                                       tuple(cur_unit_rect))
-                prerenders[1].fill(self.cols[(i + j + 1) % 2], 
-                                       tuple(cur_unit_rect))
+                cur_unit_rect = graphics.Rect(cur_unit_pos, cur_unit)
+                cur_unit_rect.col = self.cols[(i + j) % 2]
+                cur_unit_rect.add_to_batch(self._batches[0])
+                cur_unit_rect.col = self.cols[(i + j + 1) % 2]
+                cur_unit_rect.add_to_batch(self._batches[1])
 
                 # Increase x values
-                if self.__class__.locations[self.origin][0] == 0:
-                    cur_unit_pos[0] += cur_unit[0]
-                    if to_decimal(i + 1) < (self.dims[0] / to_decimal(2)):
-                        cur_unit[0] -= unit_grad[0]
-                    elif to_decimal(i + 1) > (self.dims[0] / to_decimal(2)):
-                        cur_unit[0] += unit_grad[0]
-                    else:
-                        pass
-                else:
-                    cur_unit_pos[0] += \
-                        self.__class__.locations[self.origin][0] * cur_unit[0]
-                    cur_unit[0] += unit_grad[0]
+                cur_unit_pos[0] += \
+                    graphics.locations[self.anchor][0] * cur_unit[0]
+                cur_unit[0] += unit_grad[0]
 
             # Reset x values
             cur_unit_pos[0] = init_pos[0]
             cur_unit[0] = init_unit[0]
 
             # Increase y values
-            if self.__class__.locations[self.origin][1] == 0:
-                cur_unit_pos[1] += cur_unit[1]
-                if to_decimal(j + 1) < (self.dims[1] / to_decimal(2)):
-                    cur_unit[1] -= unit_grad[1]
-                elif to_decimal(j + 1) > (self.dims[1] / to_decimal(2)):
-                    cur_unit[1] += unit_grad[1]
-                else:
-                    pass
-            else:
-                cur_unit_pos[1] += \
-                    self.__class__.locations[self.origin][1] * cur_unit[1]
-                cur_unit[1] += unit_grad[1]
+            cur_unit_pos[1] += \
+                graphics.locations[self.anchor][1] * cur_unit[1]
+            cur_unit[1] += unit_grad[1]
 
-        for prerender in prerenders:
-            prerender.unlock()
+        if self.prerender_to_texture:
+            # Create textures
+            int_size = [int(round(s)) for s in self._size]
+            self._prerenders =\
+                [pyglet.image.Texture.create(*int_size) for n in range(2)]
+            # Set up framebuffer
+            fbo = graphics.Framebuffer()
+            for n in range(2):
+                fbo.attach_texture(self._prerenders[n])
+                # Draw batch to texture
+                fbo.start_render()
+                self._batches[n].draw()
+                fbo.end_render()
+                # Anchor textures for correct blitting later
+                self._prerenders[n].anchor_x, self._prerenders[n].anchor_y =\
+                    [int(round((1 - a)* s/to_decimal(2))) for s, a in 
+                     zip(self._size, graphics.locations[self.anchor])]
+            fbo.delete()
+            self._prerenders[0].save('test.png')
+            # Delete batches since they won't be used
+            del self._batches
 
-        self._prerenders = tuple(prerenders)
-        self._prerendered = True
+        self._computed = True
 
-    def draw(self, Surface, position=None, always_redraw=False):
+    def draw(self, always_compute=False):
         """Draws appropriate prerender depending on current phase."""
-        if not self._prerendered or always_redraw:
-            self.prerender()
-        if position == None:
-            position = self.position
-        dest = pygame.Rect((0, 0), self._size)
-        setattr(dest, self.origin, position)
+        if not self._computed or always_compute:
+            self.compute()
         self._cur_phase %= 360
-        if 0 <= self._cur_phase < 180:
-            Surface.blit(self._prerenders[0], dest)
-        elif 180 <= self._cur_phase < 360:
-            Surface.blit(self._prerenders[1], dest)
+        n = int(self._cur_phase // 180)
+        if self.prerender_to_texture:
+            self._prerenders[n].blit(*self.position)
+        else:
+            self._batches[n].draw()
 
-    def lazydraw(self, Surface, position=None):
+    def lazydraw(self):
         """Only draws on color reversal."""
-        if ((180 <= self._cur_phase < 360 and 0 <= self._prev_phase < 180) or 
-            (0 <= self._cur_phase < 180 and 180 <= self._prev_phase < 360) or
-            self._first_draw):
-            self.draw(Surface, position)
+        cur_n = int(self._cur_phase // 180)
+        prev_n = int(self._prev_phase // 180)
+        if (cur_n != prev_n) or self._first_draw:
+            self.draw()
         if self._first_draw:
             self._first_draw = False

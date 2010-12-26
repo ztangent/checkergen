@@ -18,7 +18,7 @@ locations = {'topleft': (1, -1), 'topright': (-1, -1),
 def set_clear_color(color=(0, 0, 0)):
     """Set the color OpenGL contexts such as windows will clear to."""
     clamped_color = [c / 255.0 for c in color if type(c) == int]
-    glClearColor(*clamped_color, 1.0)
+    glClearColor(*(clamped_color + [1.0]))
     
 def get_window_texture(window):
     """Returns color buffer of the specified window as a Texture."""
@@ -59,6 +59,7 @@ class Framebuffer:
 
     def delete(self):
         """Deletes framebuffer, after which it cannot be used."""
+        self.end_render()
         self.unbind()
         glDeleteFramebuffersEXT(1, ctypes.byref(self.id))         
         
@@ -80,7 +81,7 @@ class Framebuffer:
         glMatrixMode(GL_MODELVIEW)
         glLoadIdentity()
         # Exact pixelization trick
-        glTranslatef(0.375, 0.375, 0)
+        # glTranslatef(0.5, 0.5, 0)
 
     def start_render(self, set2D=True):
         """Sets up rendering environment. To be called before any drawing."""
@@ -114,7 +115,6 @@ class Framebuffer:
 
     def clear(self):
         """Clears the framebuffer to the current clear color."""
-        self.start_render(set2D)
         glClear(gl.GL_COLOR_BUFFER_BIT)
 
 class Rect:
@@ -138,7 +138,7 @@ class Rect:
         self.dims = [int(round(d)) for d in dims]
         if type(anchor) == str:
             anchor = [(1 - a)* d/2.0 for d, a in 
-                      zip(dims, locations[anchor])]
+                      zip(self.dims, locations[anchor])]
         self.anchor = [int(round(a)) for a in anchor]
         self.col = tuple(col)
  
@@ -180,4 +180,3 @@ class Rect:
                           [0, 1, 2, 1, 2, 3],
                           ('v2i', self.concat_verts()),
                           ('c3B', self.col * 4))
-

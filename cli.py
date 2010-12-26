@@ -9,6 +9,7 @@ import shlex
 # import threading
 
 import core
+from graphics import locations
 from utils import *
 
 CMD_PROMPT = '(ckg) '
@@ -245,10 +246,10 @@ class CkgCmd(cmd.Cmd):
                            help='width,height of final unit cell in pixels')
     mk_parser.add_argument('position', action=store_tuple(2, ',', to_decimal),
                            help='x,y position of checkerboard in pixels')
-    mk_parser.add_argument('origin', choices=core.CheckerBoard.locations,
-                           help='''location of origin point of checkerboard
+    mk_parser.add_argument('anchor', choices=locations,
+                           help='''location of anchor point of checkerboard
                                    (choices: %(choices)s)''',
-                           metavar='origin')
+                           metavar='anchor')
     mk_parser.add_argument('cols', action=store_tuple(2, ',', col_cast, [';']),
                            help='''color1,color2 of the checkerboard
                                    (color format: R;G;B or name, 
@@ -299,8 +300,8 @@ class CkgCmd(cmd.Cmd):
                            action=store_tuple(2, ',', to_decimal),
                            help='position of checkerboard in pixels',
                            metavar='X,Y')
-    ed_parser.add_argument('--origin', choices=core.CheckerBoard.locations,
-                           help='''location of origin point of checkerboard
+    ed_parser.add_argument('--anchor', choices=locations,
+                           help='''location of anchor point of checkerboard
                                    (choices: %(choices)s)''',
                            metavar='LOCATION')
     ed_parser.add_argument('--cols', metavar='COLOR1,COLOR2',
@@ -470,14 +471,14 @@ class CkgCmd(cmd.Cmd):
             print '\n',\
                 'id'.rjust(2),\
                 'colors'.rjust(27),\
-                'origin'.rjust(12),\
+                'anchor'.rjust(12),\
                 'freq'.rjust(6),\
                 'phase'.rjust(7)
             for n, board in zip(args.idlist, self.cur_proj.boards):
                 print \
                     ls_str(n).rjust(2),\
                     ls_str(board.cols).rjust(27),\
-                    ls_str(board.origin).rjust(12),\
+                    ls_str(board.anchor).rjust(12),\
                     ls_str(board.freq).rjust(6),\
                     ls_str(board.phase).rjust(7)            
 
