@@ -81,6 +81,12 @@ class Timer:
         cur_time = self.clock()
         return cur_time - self.start_time
 
+    def restart(self):
+        old_start_time = self.start_time
+        self.start_time = self.clock()
+        self.running = True
+        return self.start_time - old_start_time
+
     def tick(self, fps):
         """Limits loop to specified fps. To be placed at start of loop."""
         fps = float(fps)

@@ -487,6 +487,8 @@ class CkgCmd(cmd.Cmd):
                                               window or in fullscreen.''')
     display_parser.add_argument('-f', '--fullscreen', action='store_true',
                                 help='sets fullscreen mode, ESC to quit')
+    display_parser.add_argument('-l', '--logtime', action='store_true',
+                                help='output frame duration to a log file')
 
     def help_display(self):
         self.__class__.display_parser.print_help()
@@ -502,16 +504,10 @@ class CkgCmd(cmd.Cmd):
             print "error:", str(sys.exc_value)
             self.__class__.display_parser.print_usage()
             return
-        self.cur_proj.display(args.fullscreen)
-        # pygame rendering within a thread is broken, comment out for now
-        ## for thread in threading.enumerate():
-        ##     if thread.name == 'display_thread':
-        ##         print 'error: animation is already being displayed'
-        ##         return
-        ## else:
-        ##     threading.Thread(target=display_anim, name='display_thread',
-        ##                      args=[copy.deepcopy(self.cur_proj),
-        ##                            args.fullscreen]).start()
+        try:
+            self.cur_proj.display(args.fullscreen, args.logtime)
+        except IOError:
+            print "error:", str(sys.exc_value)
 
     export_parser = CmdParser(add_help=False, prog='export',
                               description='''Exports animation as an image
@@ -527,7 +523,6 @@ class CkgCmd(cmd.Cmd):
                                dest='folder', action='store_false',
                                help='''force images not to exported in 
                                        a containing folder''')
-
 
     def help_export(self):
         self.__class__.export_parser.print_help()
@@ -559,6 +554,7 @@ class CkgCmd(cmd.Cmd):
                     print str(sys.exc_value)
                 except EOFError:
                     return True
+        print "Export done."
 
     def do_quit(self, line):
         """Quits the program."""
