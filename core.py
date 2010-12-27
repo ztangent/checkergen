@@ -149,15 +149,17 @@ class CkgProj:
         for board in self.boards:
             board.reset()
 
-        window = pyglet.window.Window(*self.res, fullscreen=fullscreen)
+        window = pyglet.window.Window(*self.res, fullscreen=fullscreen,
+                                       visible=False)
         window.switch_to()
         graphics.set_clear_color(self.bg)
         window.clear()
+        window.set_visible()
 
         while not window.has_exit:
-            window.dispatch_events()
+            window.clear()
             for board in self.boards:
-                board.lazydraw()
+                board.draw()
                 board.update(self.fps)
             window.dispatch_events()
             window.flip()
@@ -210,7 +212,6 @@ class CkgProj:
         
 class CheckerBoard:
 
-# TODO: Correct for power of 2 texture sizes
 # TODO: Reimplement mid/center anchor functionality in cool new way
 
     def __init__(self, dims, init_unit, end_unit, position, anchor, 
@@ -231,7 +232,8 @@ class CheckerBoard:
 
     def __setattr__(self, name, value):
         self.__dict__[name] = value
-        if name in ['dims', 'init_unit', 'end_unit', 'anchor','cols']:
+        if name in ['dims', 'init_unit', 'end_unit', 
+                    'position', 'anchor','cols']:
             self._computed = False
 
     def reset(self, new_phase=None):
@@ -282,7 +284,8 @@ class CheckerBoard:
         for j in range(self.dims[1]):
             for i in range(self.dims[0]):
 
-                cur_unit_rect = graphics.Rect(cur_unit_pos, cur_unit)
+                cur_unit_rect = graphics.Rect(cur_unit_pos, cur_unit,
+                                              anchor=self.anchor)
                 cur_unit_rect.col = self.cols[(i + j) % 2]
                 cur_unit_rect.add_to_batch(self._batches[0])
                 cur_unit_rect.col = self.cols[(i + j + 1) % 2]
@@ -320,7 +323,6 @@ class CheckerBoard:
                     [int(round((1 - a)* s/to_decimal(2))) for s, a in 
                      zip(self._size, graphics.locations[self.anchor])]
             fbo.delete()
-            self._prerenders[0].save('test.png')
             # Delete batches since they won't be used
             del self._batches
 

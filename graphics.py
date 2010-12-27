@@ -134,13 +134,14 @@ class Rect:
         col -- Color of the rectangle as a 3-tuple. Defaults to white.
 
         """
-        self.pos = [int(round(p)) for p in pos]
-        self.dims = [int(round(d)) for d in dims]
+        self.pos = [float(p) for p in pos]
+        self.dims = [float(d) for d in dims]
         if type(anchor) == str:
             anchor = [(1 - a)* d/2.0 for d, a in 
                       zip(self.dims, locations[anchor])]
-        self.anchor = [int(round(a)) for a in anchor]
+        self.anchor = [float(a) for a in anchor]
         self.col = tuple(col)
+        self.VertexList = None
  
     def x(self):
         return [self.pos[0] - self.anchor[0], 
@@ -163,7 +164,7 @@ class Rect:
         """Draws rectangle in the current context."""
         pyglet.graphics.draw_indexed(4, GL_TRIANGLES,
                                      [0, 1, 2, 1, 2, 3],
-                                     ('v2i', self.concat_verts()),
+                                     ('v2f', self.concat_verts()),
                                      ('c3B', self.col * 4))
 
     def gl_draw(self):
@@ -171,12 +172,12 @@ class Rect:
         glBegin(GL_TRIANGLES)
         glColor3ubv(self.col)
         for i in [0, 1, 2, 1, 2, 3]:
-            glVertex2iv(self.verts()[i])
+            glVertex2fv(self.verts()[i])
         glEnd()
 
     def add_to_batch(self, Batch):
         """Adds rectangle to specified Batch."""
-        Batch.add_indexed(4, GL_TRIANGLES, None,
-                          [0, 1, 2, 1, 2, 3],
-                          ('v2i', self.concat_verts()),
-                          ('c3B', self.col * 4))
+        self.VertexList = Batch.add_indexed(4, GL_TRIANGLES, None,
+                                            [0, 1, 2, 1, 2, 3],
+                                            ('v2f', self.concat_verts()),
+                                            ('c3B', self.col * 4))
