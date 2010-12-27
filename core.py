@@ -149,12 +149,13 @@ class CkgProj:
         for board in self.boards:
             board.reset()
 
-        window = pyglet.window.Window(*self.res, fullscreen=fullscreen,
-                                       visible=False)
+        window = pyglet.window.Window(*self.res, visible=False)
         window.switch_to()
         graphics.set_clear_color(self.bg)
         window.clear()
         window.set_visible()
+
+        fix_cross = graphics.Cross([r/2 for r in self.res], (20, 20))
 
         if logtime:
             timer = Timer()
@@ -166,11 +167,13 @@ class CkgProj:
             for board in self.boards:
                 board.draw()
                 board.update(self.fps)
+            fix_cross.draw()
             window.dispatch_events()
             window.flip()
             if logtime:
                 logstring = '\n'.join([logstring, str(timer.restart())])
         window.close()
+
         if logtime:
             filename = '{0}.log'.format(self.name)
             with open(filename, 'w') as logfile:

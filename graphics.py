@@ -15,7 +15,7 @@ locations = {'topleft': (1, -1), 'topright': (-1, -1),
              'midleft': (1, 0), 'midright': (-1, 0),
              'center': (0, 0)}
 
-def set_clear_color(color=(0, 0, 0)):
+def set_clear_color(color=(0,)*3):
     """Set the color OpenGL contexts such as windows will clear to."""
     clamped_color = [c / 255.0 for c in color if type(c) == int]
     glClearColor(*(clamped_color + [1.0]))
@@ -181,3 +181,71 @@ class Rect:
                                             [0, 1, 2, 1, 2, 3],
                                             ('v2f', self.concat_verts()),
                                             ('c3B', self.col * 4))
+
+class Cross:
+
+    def __init__(self, pos, dims, thick=2.0, col=(0,)*3):
+        """Creates a cross(hair) with a position, dimensions and thickness.
+
+        pos -- [x,y] position of the center of the cross in its parent 
+        context in pixels.
+        
+        dims -- [width,height] dimensions of the cross in pixels.        
+        
+        thick -- Thickness of the cross in pixels
+
+        col -- Color of the rectangle as a 3-tuple. Defaults to white.
+
+        """
+        self.pos = [float(p) for p in pos]
+        self.dims = [float(d) for d in dims]
+        self.thick = float(thick)
+        self.col = tuple(col)
+        self.VertexList = None
+ 
+    def x(self):
+        return [self.pos[0] - self.dims[0]/2, 
+                self.pos[0] + self.dims[0]/2]
+
+    def y(self):
+        return [self.pos[1] - self.dims[1]/2, 
+                self.pos[1] + self.dims[1]/2]
+
+    def x_verts(self):
+        return [(x, self.pos[1]) for x in self.x()]
+
+    def y_verts(self):
+        return [(self.pos[0], y) for y in self.y()]
+
+    def verts(self):
+        return self.x_verts() + self.y_verts()
+
+    def concat_verts(self):
+        concat_verts = []
+        for vert in self.verts():
+            concat_verts += vert
+        return tuple(concat_verts)
+
+    def draw(self):
+        """Draws rectangle in the current context."""
+        glLineWidth(self.thick)
+        pyglet.graphics.draw(4, GL_LINES,
+                             ('v2f', self.concat_verts()),
+                             ('c3B', self.col * 4))
+        glLineWidth(1.0)
+
+    def gl_draw(self):
+        """Draw using raw OpenGL functions."""
+        glLineWidth(self.thick)
+        glBegin(GL_LINES)
+        glColor3ubv(self.col)
+        for vert in self.verts():
+            glVertex2fv(vert)
+        glEnd()
+        glLineWidth(1.0)
+
+    def add_to_batch(self, Batch):
+        """Adds cross to specified Batch. Line thickness not supported."""
+        self.VertexList = Batch.add(4, GL_LINES, None,
+                                    ('v2f', self.concat_verts()),
+                                    ('c3B', self.col * 4))
