@@ -1,0 +1,47 @@
+<?xml version="1.0" ?>
+<project xmlns="http://github.com/ZOMGxuan/checkergen">
+    <fps>Decimal('60')</fps>
+    <res>(800, 600)</res>
+    <bg>(127, 127, 127)</bg>
+    <export_fmt>'png'</export_fmt>
+    <board>
+        <dims>(Decimal('8'), Decimal('8'))</dims>
+        <init_unit>(Decimal('25'), Decimal('25'))</init_unit>
+        <end_unit>(Decimal('40'), Decimal('40'))</end_unit>
+        <position>(Decimal('420'), Decimal('320'))</position>
+        <anchor>'bottomleft'</anchor>
+        <cols>((0, 0, 0), (255, 255, 255))</cols>
+        <freq>Decimal('1')</freq>
+        <phase>Decimal('0')</phase>
+    </board>
+    <board>
+        <dims>(Decimal('8'), Decimal('8'))</dims>
+        <init_unit>(Decimal('25'), Decimal('25'))</init_unit>
+        <end_unit>(Decimal('40'), Decimal('40'))</end_unit>
+        <position>(Decimal('380'), Decimal('320'))</position>
+        <anchor>'bottomright'</anchor>
+        <cols>((0, 0, 0), (255, 255, 255))</cols>
+        <freq>Decimal('2')</freq>
+        <phase>Decimal('10')</phase>
+    </board>
+    <board>
+        <dims>(Decimal('8'), Decimal('8'))</dims>
+        <init_unit>(Decimal('25'), Decimal('25'))</init_unit>
+        <end_unit>(Decimal('40'), Decimal('40'))</end_unit>
+        <position>(Decimal('420'), Decimal('280'))</position>
+        <anchor>'topleft'</anchor>
+        <cols>((0, 0, 0), (255, 255, 255))</cols>
+        <freq>Decimal('3')</freq>
+        <phase>Decimal('20')</phase>
+    </board>
+    <board>
+        <dims>(Decimal('8'), Decimal('8'))</dims>
+        <init_unit>(Decimal('25'), Decimal('25'))</init_unit>
+        <end_unit>(Decimal('40'), Decimal('40'))</end_unit>
+        <position>(Decimal('380'), Decimal('280'))</position>
+        <anchor>'topright'</anchor>
+        <cols>((0, 0, 0), (255, 255, 255))</cols>
+        <freq>Decimal('4')</freq>
+        <phase>Decimal('30')</phase>
+    </board>
+</project>
