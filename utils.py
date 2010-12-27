@@ -5,8 +5,6 @@ import time
 import math
 from decimal import *
 
-from pygame.locals import *
-
 def gcd(a, b):
     """Return greatest common divisor using Euclid's Algorithm."""
     while b > 0:      
@@ -43,14 +41,9 @@ def to_decimal(s):
         except InvalidOperation:
             raise ValueError
 
-def col_cast(s, sep=','):
+def to_color(s, sep=','):
     """Tries to cast a string to a color (3-tuple)."""
-    try:
-        c = Color(s)
-        c.set_length(3)
-        c = tuple(c)
-    except ValueError:
-        c = tuple([int(x) for x in s.split(sep)])
+    c = tuple([int(x) for x in s.split(sep)])
     return c
 
 class Timer:

@@ -2,7 +2,8 @@
 
 import os
 import sys
-import readline
+if os.name == 'posix':
+    import readline
 import argparse
 import cmd
 import shlex
@@ -201,7 +202,7 @@ class CkgCmd(cmd.Cmd):
     set_parser.add_argument('--res', action=store_tuple(2, ',', int),
                             help='animation canvas size/resolution in pixels',
                             metavar='WIDTH,HEIGHT')
-    set_parser.add_argument('--bg', metavar='COLOR', type=col_cast,
+    set_parser.add_argument('--bg', metavar='COLOR', type=to_color,
                             help='''background color of the canvas
                                     (color format: R,G,B or name, 
                                     component range from 0-255)''')
@@ -250,7 +251,7 @@ class CkgCmd(cmd.Cmd):
                            help='''location of anchor point of checkerboard
                                    (choices: %(choices)s)''',
                            metavar='anchor')
-    mk_parser.add_argument('cols', action=store_tuple(2, ',', col_cast, [';']),
+    mk_parser.add_argument('cols', action=store_tuple(2, ',', to_color, [';']),
                            help='''color1,color2 of the checkerboard
                                    (color format: R;G;B or name, 
                                    component range from 0-255)''')
@@ -305,7 +306,7 @@ class CkgCmd(cmd.Cmd):
                                    (choices: %(choices)s)''',
                            metavar='LOCATION')
     ed_parser.add_argument('--cols', metavar='COLOR1,COLOR2',
-                           action=store_tuple(2, ',', col_cast, [';']),
+                           action=store_tuple(2, ',', to_color, [';']),
                            help='''checkerboard colors (color format:
                                    R;G;B or name, component range 
                                    from 0-255)''')
