@@ -148,31 +148,56 @@ class CkgProj:
     def display(self, fullscreen=False, logtime=False):
         for board in self.boards:
             board.reset()
+        fix_cross = graphics.Cross([r/2 for r in self.res], (20, 20))
 
-        window = pyglet.window.Window(*self.res, visible=False)
+        scaling = False
+        if fullscreen:
+            window = pyglet.window.Window(fullscreen=True, visible=False)
+            if (window.width, window.height) != self.res:
+                scaling = True
+        else:
+            window = pyglet.window.Window(*self.res, visible=False)            
+
+        if scaling:
+            canvas = pyglet.image.Texture.create(*self.res)
+            fbo = graphics.Framebuffer(canvas)
+            fbo.start_render()
+            graphics.set_clear_color(self.bg)
+            fbo.clear()
+            fbo.end_render()
+
         window.switch_to()
         graphics.set_clear_color(self.bg)
         window.clear()
         window.set_visible()
-
-        fix_cross = graphics.Cross([r/2 for r in self.res], (20, 20))
-
+            
         if logtime:
             timer = Timer()
             timer.start()
             logstring = ''
 
         while not window.has_exit:
-            window.clear()
+            if scaling:
+                fbo.start_render()
+                fbo.clear()
+            else:
+                window.clear()
             for board in self.boards:
                 board.draw()
                 board.update(self.fps)
             fix_cross.draw()
+            if scaling:
+                fbo.end_render()
+                window.switch_to()
+                canvas.blit(0, 0)
             window.dispatch_events()
             window.flip()
             if logtime:
                 logstring = '\n'.join([logstring, str(timer.restart())])
         window.close()
+        if scaling:
+            fbo.delete()
+            del canvas
 
         if logtime:
             filename = '{0}.log'.format(self.name)
