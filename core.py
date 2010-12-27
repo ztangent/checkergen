@@ -158,13 +158,8 @@ class CkgProj:
 
         if logtime:
             timer = Timer()
-            try:
-                filename = '{0}.log'.format(self.name)
-                logfile = open(filename, 'w')
-            except IOError:
-                logfile.close()
-                raise
             timer.start()
+            logstring = ''
 
         while not window.has_exit:
             window.clear()
@@ -174,11 +169,12 @@ class CkgProj:
             window.dispatch_events()
             window.flip()
             if logtime:
-                logfile.write(str(timer.restart()))
-                logfile.write('\n')
+                logstring = '\n'.join([logstring, str(timer.restart())])
         window.close()
         if logtime:
-            logfile.close()
+            filename = '{0}.log'.format(self.name)
+            with open(filename, 'w') as logfile:
+                logfile.write(logstring)
 
     def export(self, export_dir, export_fmt=None, folder=True, force=False):
         if not os.path.isdir(export_dir):
