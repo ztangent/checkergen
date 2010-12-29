@@ -26,7 +26,10 @@ def set(level=1, pid=None):
     pid -- Process id. If None, current process id is used.
     
     """
-    if level in [0,'low','idle']:
+    if sys.platform not in available or not available[sys.platform]:
+        msg = 'Setting priority not available on {0}'.format(sys.platform)
+        raise NotImplementedError(msg)
+    elif level in [0,'low','idle']:
         set_low(pid)
     elif level in [1, 'normal']:
         set_normal(pid)
