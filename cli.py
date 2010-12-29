@@ -10,6 +10,7 @@ import shlex
 # import threading
 
 import core
+import priority
 from graphics import locations
 from utils import *
 
@@ -485,12 +486,20 @@ class CkgCmd(cmd.Cmd):
 
     display_parser = CmdParser(add_help=False, prog='display',
                                description='''Displays the animation in a
-                                              window or in fullscreen.''')
+                                              window or in fullscreen.
+                                              Beware of setting priority
+                                              to realtime.''')
     display_parser.add_argument('-f', '--fullscreen', action='store_true',
                                 help='sets fullscreen mode, ESC to quit')
     display_parser.add_argument('-l', '--logtime', action='store_true',
                                 help='output frame duration to a log file')
-
+    display_parser.add_argument('-p', '--priority',
+                                help='''set priority while displaying,
+                                        higher priority results in
+                                        less dropped frames (choices:
+                                        0-3, low, normal, high,
+                                        realtime)''')
+                                
     def help_display(self):
         self.__class__.display_parser.print_help()
 
@@ -505,10 +514,24 @@ class CkgCmd(cmd.Cmd):
             print "error:", str(sys.exc_value)
             self.__class__.display_parser.print_usage()
             return
+        if args.priority != None:
+            if args.priority.isdigit():
+                args.priority = int(args.priority)
+            try:
+                priority.set(args.priority)
+            except (ValueError, NotImplementedError):
+                print "error:", str(sys.exc_value)
+                print "continuing..."
         try:
             self.cur_proj.display(args.fullscreen, args.logtime)
         except IOError:
             print "error:", str(sys.exc_value)
+            return
+        if args.priority != None:
+            try:
+                priority.set('normal')
+            except:
+                pass
 
     export_parser = CmdParser(add_help=False, prog='export',
                               description='''Exports animation as an image
