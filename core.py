@@ -22,14 +22,33 @@ from utils import *
 
 CKG_FMT = 'ckg'
 XML_NAMESPACE = 'http://github.com/ZOMGxuan/checkergen'
-DEFAULT_NAME = 'untitled'
-DEFAULT_FPS = 60
-DEFAULT_RES = 800, 600
-DEFAULT_BG = (127, 127, 127)
 EXPORT_FMTS = ['png']
-DEFAULT_EXPORT_FMT = 'png'
 MAX_EXPORT_FRAMES = 10000
-DEFAULT_INTERVALS = [0,-1,0]
+PRERENDER_TO_TEXTURE = False
+
+def xml_get(parent, namespace, name):
+    """Returns concatenated text node values inside an element."""
+    element = parent.getElementsByTagNameNS(namespace, name)[0]
+    strings = []
+    for node in element.childNodes:
+        if node.nodeType == node.TEXT_NODE:
+            strings.append(node.data)
+    return ''.join(strings)
+
+def xml_set(document, parent, name, string):
+    """Stores value as a text node in a new DOM element."""
+    element = document.createElement(name)
+    parent.appendChild(element)
+    text = document.createTextNode(string)
+    element.appendChild(text)
+
+def xml_pretty_print(document, indent):
+    """Hack to prettify minidom's not so pretty print."""
+    ugly_xml = document.toprettyxml(indent=indent)
+    prettifier_re = re.compile('>\n\s+([^<>\s].*?)\n\s+</',
+                               re.DOTALL)    
+    pretty_xml = prettifier_re.sub('>\g<1></', ugly_xml)
+    return pretty_xml
 
 class FileFormatError(ValueError):
     """Raised when correct file format/extension is not supplied."""
@@ -42,41 +61,63 @@ class FrameOverflowError(Exception):
 class CkgProj:
     """Defines a checkergen project, with checkerboards and other settings."""
 
-    def __init__(self, name=DEFAULT_NAME, fps=DEFAULT_FPS, res=DEFAULT_RES, 
-                 bg=DEFAULT_BG, export_fmt=DEFAULT_EXPORT_FMT,
-                 intervals=DEFAULT_INTERVALS, path=None):
-        if path != None:
-            self.load(path)
+    DEFAULTS = {'name': 'untitled',
+                'fps': 60,
+                'res': (800, 600),
+                'bg': (127, 127, 127),
+                'export_fmt': 'png'}
+
+    def __init__(self, **keywords):
+        """Initializes a new project, or loads it from a path.
+
+        path -- if specified, ignore other arguments and load project 
+        from path
+        
+        name -- name of the project, always the same as the 
+        filename without the extension
+
+        fps -- frames per second of the animation to be displayed
+
+        res -- screen resolution / window size at which project 
+        will be displayed
+
+        bg -- background color of the animation as a 3-tuple (R, G, B)
+
+        export_fmt -- image format for animation to be exported as
+
+        """
+        if 'path' in keywords:
+            self.load(keywords['path'])
             return
-        self.name = str(name)
-        self.fps = to_decimal(fps)
-        self.res = tuple([int(d) for d in res])
-        self.bg = bg
-        if export_fmt in EXPORT_FMTS:
-            self.export_fmt = export_fmt
-        else:
-            msg = 'image format not recognized or supported'
-            raise FileFormatError(msg)
-        self.intervals = [to_decimal(i) for i in intervals]
-        self.boards = []
+        for kw in self.__class__.DEFAULTS.keys():
+            if kw not in keywords.keys():
+                setattr(self, kw, self.__class__.DEFAULTS[kw])
+            else:
+                setattr(self, kw, keywords[kw])
+        self.groups = []
 
     def __setattr__(self, name, value):
+        # Type conversions
+        if name == 'name':
+            value = str(value)
+        elif name == 'fps':
+            value = to_decimal(value)
+        elif name in ['res', 'bg']:
+            value = tuple([int(v) for v in value])
+        elif name == 'export_fmt':
+            if value not in EXPORT_FMTS:
+                msg = 'image format not recognized or supported'
+                raise FileFormatError(msg)
+        # Store value
         self.__dict__[name] = value
+        # Set dirty bit
         if name != 'dirty':
             self.dirty = True
 
     def load(self, path):
         """Loads project from specified path."""
 
-        def xml_get(parent, namespace, name):
-            """Returns concatenated text node values inside an element."""
-            element = parent.getElementsByTagNameNS(namespace, name)[0]
-            strings = []
-            for node in element.childNodes:
-                if node.nodeType == node.TEXT_NODE:
-                    strings.append(node.data)
-            return ''.join(strings)
-
+        # Get project name from filename
         name, ext = os.path.splitext(os.path.basename(path))
         if ext == '.{0}'.format(CKG_FMT):
             self.name = name
@@ -88,47 +129,39 @@ class CkgProj:
             doc = minidom.parse(project_file)
 
         project = doc.documentElement
-        for var in ['fps', 'res', 'bg', 'export_fmt', 'intervals']:
-            try:
-                value = eval(xml_get(project, XML_NAMESPACE, var))
-            except IndexError:
-                print "error: incomplete or corrupt project file"
-                return
-            setattr(self, var, value)
-        self.boards = []
-        board_els = project.getElementsByTagNameNS(XML_NAMESPACE, 'board')
-        board_args = ['dims', 'init_unit', 'end_unit', 'position',
-                      'anchor', 'cols', 'freq', 'phase']
-        for board_el in board_els:
-            try:
-                board_dict = dict([(arg, eval(xml_get(board_el, 
-                                                      XML_NAMESPACE, arg)))
-                                   for arg in board_args])
-            except IndexError:
-                print "error: incomplete or corrupt project file"
-                return
-            new_board = CheckerBoard(**board_dict)
-            self.boards.append(new_board)
+        for var in self.__class__.DEFAULTS.keys():
+            # Name is not stored in project file
+            if var != 'name':
+                try:
+                    value = eval(xml_get(project, XML_NAMESPACE, var))
+                except IndexError:
+                    print "warning: missing attribute '{0}'".format(var)
+                    value = self.__class__.DEFAULTS[var]
+                    print "using default value '{}' instead...".format(value)
+                setattr(self, var, value)
+        self.groups = []
+        group_els = project.getElementsByTagNameNS(XML_NAMESPACE, 'group')
+        for group_el in group_els:
+            new_group = CkgGroup()
+            new_group.load(group_el)
+            self.groups.append(new_group)
+        # board_args = ['dims', 'init_unit', 'end_unit', 'position',
+        #               'anchor', 'cols', 'freq', 'phase']
+        # for board_el in board_els:
+        #     try:
+        #         board_dict = dict([(arg, eval(xml_get(board_el, 
+        #                                               XML_NAMESPACE, arg)))
+        #                            for arg in board_args])
+        #     except IndexError:
+        #         print "error: incomplete or corrupt project file"
+        #         return
+        #     new_board = CheckerBoard(**board_dict)
+        #     self.boards.append(new_board)
 
         self.dirty = False
 
     def save(self, path):
         """Saves project to specified path as an XML document."""
-
-        def xml_set(document, parent, name, string):
-            """Stores value as a text node in a new DOM element."""
-            element = document.createElement(name)
-            parent.appendChild(element)
-            text = document.createTextNode(string)
-            element.appendChild(text)
-
-        def xml_pretty_print(document, indent):
-            """Hack to prettify minidom's not so pretty print."""
-            ugly_xml = document.toprettyxml(indent=indent)
-            prettifier_re = re.compile('>\n\s+([^<>\s].*?)\n\s+</',
-                                       re.DOTALL)    
-            pretty_xml = prettifier_re.sub('>\g<1></', ugly_xml)
-            return pretty_xml
 
         self.name, ext = os.path.splitext(os.path.basename(path))
         if ext != '.{0}'.format(CKG_FMT):
@@ -139,12 +172,12 @@ class CkgProj:
         project = doc.documentElement
         # Hack below because minidom doesn't support namespaces properly
         project.setAttribute('xmlns', XML_NAMESPACE)
-        for var in ['fps', 'res', 'bg', 'export_fmt',
-                    'intervals']:
-            xml_set(doc, project, var, repr(getattr(self, var)))
-        for board in self.boards:
-            board_el = doc.createElement('board')
-            project.appendChild(board_el)
+        for var in self.__class__.DEFAULTS.keys():
+            # Don't store project name in the file
+            if var != 'name':
+                xml_set(doc, project, var, repr(getattr(self, var)))
+        for group in self.groups:
+            group.save(doc, project)
             for var in ['dims', 'init_unit', 'end_unit', 'position',
                         'anchor', 'cols', 'freq', 'phase']:
                 xml_set(doc, board_el, var, repr(getattr(board, var)))
@@ -266,25 +299,67 @@ class CkgProj:
             count += 1
 
         fbo.delete()
-        
-class CheckerBoard:
 
-# TODO: Reimplement mid/center anchor functionality in cool new way
+class CkgGroup:
+
+    def __init__(self, pre=0, post=0):
+        "Create a new group of shapes to be displayed.
+
+        pre -- time in seconds a blank screen is shown before
+        shapes in group are displayed
+
+        post -- time in seconds a blank screen is shown after
+        shapes in group are displayed
+
+        "
+        self.pre = pre
+        self.post = post
+        self.shapes = []
+
+    def __setattr__(self, name, value):
+        if name in ['pre', 'post']:
+            value = to_decimal(value)
+        self.__dict__[name] = value
+
+
+    def save(self, document, parent):
+        """Saves group in specified XML document as child of parent."""
+        group_el = document.createElement('group')
+        parent.appendChild(group_el)
+        for var in ['pre', 'post']:
+            xml_set(document, group_el, repr(getattr(self, var)))
+        for shape in self.shapes:
+            shape.save(document, group_el)
+          
+    def load(self, document, parent):
+        """Loads group from specified XML document as child of parent."""
+        pass
+        
+class CheckerShape:
+    # Abstract class, to be implemented.
+    pass
+
+class CheckerDisc(CheckerShape):
+    # Circular checker pattern, to be implemented
+    pass
+        
+class CheckerBoard(CheckerShape):
+
+    # TODO: Reimplement mid/center anchor functionality in cool new way
 
     def __init__(self, dims, init_unit, end_unit, position, anchor, 
-                 cols, freq, phase=0, prerender_to_texture=False):
+                 cols, freq, phase=0):
         self.dims = tuple([int(x) for x in dims])
         self.init_unit = tuple([to_decimal(x) for x in init_unit])
         self.end_unit = tuple([to_decimal(x) for x in end_unit])
         self.position = tuple([to_decimal(x) for x in position])
-        if anchor in graphics.locations and type(anchor) == str:
+        if anchor in graphics.locations.keys():
             self.anchor = anchor
         else:
-            raise TypeError
+            raise ValueError
         self.cols = tuple(cols)
         self.freq = to_decimal(freq)
         self.phase = to_decimal(phase)
-        self.prerender_to_texture = prerender_to_texture
         self.reset()
 
     def __setattr__(self, name, value):
@@ -328,7 +403,7 @@ class CheckerBoard:
                                graphics.locations[self.anchor])])
 
         # Set initial values
-        if self.prerender_to_texture:
+        if PRERENDER_TO_TEXTURE:
             init_pos = [(1 - a)* s/to_decimal(2) for s, a in 
                         zip(self._size, graphics.locations[self.anchor])]
         else:
@@ -362,7 +437,7 @@ class CheckerBoard:
                 graphics.locations[self.anchor][1] * cur_unit[1]
             cur_unit[1] += unit_grad[1]
 
-        if self.prerender_to_texture:
+        if PRERENDER_TO_TEXTURE:
             # Create textures
             int_size = [int(round(s)) for s in self._size]
             self._prerenders =\
@@ -391,7 +466,7 @@ class CheckerBoard:
             self.compute()
         self._cur_phase %= 360
         n = int(self._cur_phase // 180)
-        if self.prerender_to_texture:
+        if PRERENDER_TO_TEXTURE:
             self._prerenders[n].blit(*self.position)
         else:
             self._batches[n].draw()

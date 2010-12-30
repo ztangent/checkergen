@@ -3,8 +3,8 @@
 import os
 import sys
 
-available = dict({'win32':False, 'cygwin':False,
-                  'linux2':False, 'darwin':False})
+available = {'win32':False, 'cygwin':False,
+             'linux2':False, 'darwin':False}
 
 if sys.platform in ['win32', 'cygwin']:
     try:

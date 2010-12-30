@@ -248,7 +248,7 @@ class CkgCmd(cmd.Cmd):
                            help='width,height of final unit cell in pixels')
     mk_parser.add_argument('position', action=store_tuple(2, ',', to_decimal),
                            help='x,y position of checkerboard in pixels')
-    mk_parser.add_argument('anchor', choices=locations,
+    mk_parser.add_argument('anchor', choices=sorted(locations.keys()),
                            help='''location of anchor point of checkerboard
                                    (choices: %(choices)s)''',
                            metavar='anchor')
@@ -302,7 +302,7 @@ class CkgCmd(cmd.Cmd):
                            action=store_tuple(2, ',', to_decimal),
                            help='position of checkerboard in pixels',
                            metavar='X,Y')
-    ed_parser.add_argument('--anchor', choices=locations,
+    ed_parser.add_argument('--anchor', choices=sorted(locations.keys()),
                            help='''location of anchor point of checkerboard
                                    (choices: %(choices)s)''',
                            metavar='LOCATION')
