@@ -86,14 +86,14 @@ class CkgProj:
         export_fmt -- image format for animation to be exported as
 
         """
-        if 'path' in keywords:
+        if 'path' in keywords.keys():
             self.load(keywords['path'])
             return
         for kw in self.__class__.DEFAULTS.keys():
-            if kw not in keywords.keys():
-                setattr(self, kw, self.__class__.DEFAULTS[kw])
-            else:
+            if kw in keywords.keys():
                 setattr(self, kw, keywords[kw])
+            else:
+                setattr(self, kw, self.__class__.DEFAULTS[kw])
         self.groups = []
 
     def __setattr__(self, name, value):
@@ -102,7 +102,13 @@ class CkgProj:
             value = str(value)
         elif name == 'fps':
             value = to_decimal(value)
-        elif name in ['res', 'bg']:
+        elif name == 'res':
+            if len(value) != 2:
+                raise ValueError
+            value = tuple([int(v) for v in value])
+        elif name == 'bg':
+            if len(value) != 3:
+                raise ValueError
             value = tuple([int(v) for v in value])
         elif name == 'export_fmt':
             if value not in EXPORT_FMTS:
@@ -129,34 +135,23 @@ class CkgProj:
             doc = minidom.parse(project_file)
 
         project = doc.documentElement
-        for var in self.__class__.DEFAULTS.keys():
-            # Name is not stored in project file
-            if var != 'name':
-                try:
-                    value = eval(xml_get(project, XML_NAMESPACE, var))
-                except IndexError:
-                    print "warning: missing attribute '{0}'".format(var)
-                    value = self.__class__.DEFAULTS[var]
-                    print "using default value '{}' instead...".format(value)
-                setattr(self, var, value)
+        vars_to_load = self.__class__.DEFAULTS.keys()
+        # Name is not stored in project file
+        vars_to_load.remove('name')
+        for var in vars_to_load:
+            try:
+                value = eval(xml_get(project, XML_NAMESPACE, var))
+            except IndexError:
+                print "warning: missing attribute '{0}'".format(var)
+                value = self.__class__.DEFAULTS[var]
+                print "using default value '{0}' instead...".format(value)
+            setattr(self, var, value)
         self.groups = []
         group_els = project.getElementsByTagNameNS(XML_NAMESPACE, 'group')
         for group_el in group_els:
             new_group = CkgGroup()
             new_group.load(group_el)
             self.groups.append(new_group)
-        # board_args = ['dims', 'init_unit', 'end_unit', 'position',
-        #               'anchor', 'cols', 'freq', 'phase']
-        # for board_el in board_els:
-        #     try:
-        #         board_dict = dict([(arg, eval(xml_get(board_el, 
-        #                                               XML_NAMESPACE, arg)))
-        #                            for arg in board_args])
-        #     except IndexError:
-        #         print "error: incomplete or corrupt project file"
-        #         return
-        #     new_board = CheckerBoard(**board_dict)
-        #     self.boards.append(new_board)
 
         self.dirty = False
 
@@ -172,16 +167,13 @@ class CkgProj:
         project = doc.documentElement
         # Hack below because minidom doesn't support namespaces properly
         project.setAttribute('xmlns', XML_NAMESPACE)
-        for var in self.__class__.DEFAULTS.keys():
-            # Don't store project name in the file
-            if var != 'name':
-                xml_set(doc, project, var, repr(getattr(self, var)))
+        vars_to_save = self.__class__.DEFAULTS.keys()
+        # Name is not stored in project file
+        vars_to_save.remove('name')
+        for var in vars_to_save:
+            xml_set(doc, project, var, repr(getattr(self, var)))
         for group in self.groups:
             group.save(doc, project)
-            for var in ['dims', 'init_unit', 'end_unit', 'position',
-                        'anchor', 'cols', 'freq', 'phase']:
-                xml_set(doc, board_el, var, repr(getattr(board, var)))
-
         with open(path, 'w') as project_file:
             project_file.write(xml_pretty_print(doc,indent='    '))
 
@@ -302,8 +294,10 @@ class CkgProj:
 
 class CkgGroup:
 
-    def __init__(self, pre=0, post=0):
-        "Create a new group of shapes to be displayed.
+    DEFAULTS = {'pre': 0, 'post': 0}
+
+    def __init__(self, **keywords):
+        """Create a new group of shapes to be displayed.
 
         pre -- time in seconds a blank screen is shown before
         shapes in group are displayed
@@ -311,9 +305,12 @@ class CkgGroup:
         post -- time in seconds a blank screen is shown after
         shapes in group are displayed
 
-        "
-        self.pre = pre
-        self.post = post
+        """
+        for kw in self.__class__.DEFAULTS.keys():
+            if kw in keywords.keys():
+                setattr(self, kw, keywords[kw])
+            else:
+                setattr(self, kw, self.__class__.DEFAULTS[kw])
         self.shapes = []
 
     def __setattr__(self, name, value):
@@ -326,14 +323,26 @@ class CkgGroup:
         """Saves group in specified XML document as child of parent."""
         group_el = document.createElement('group')
         parent.appendChild(group_el)
-        for var in ['pre', 'post']:
-            xml_set(document, group_el, repr(getattr(self, var)))
+        for var in self.__class__.DEFAULTS.keys():
+            xml_set(document, group_el, var,  repr(getattr(self, var)))
         for shape in self.shapes:
             shape.save(document, group_el)
           
-    def load(self, document, parent):
-        """Loads group from specified XML document as child of parent."""
-        pass
+    def load(self, element):
+        """Loads group from XML DOM element."""
+        for var in self.__class__.DEFAULTS.keys():
+            try:
+                value = eval(xml_get(element, XML_NAMESPACE, var))
+            except IndexError:
+                print "warning: missing attribute '{0}'".format(var)
+                value = self.__class__.DEFAULTS[var]
+                print "using default value '{0}' instead...".format(value)
+        shape_els = element.getElementsByTagNameNS(XML_NAMESPACE, 'shape')
+        for shape_el in shape_els:
+            # TODO: Make load code shape-agnostic
+            new_shape = CheckerBoard()
+            new_shape.load(shape_el)
+            self.shapes.append(new_shape)
         
 class CheckerShape:
     # Abstract class, to be implemented.
@@ -345,28 +354,68 @@ class CheckerDisc(CheckerShape):
         
 class CheckerBoard(CheckerShape):
 
+    DEFAULTS = {'dims': (5, 5),
+                'init_unit': (30, 30), 'end_unit': (50, 50),
+                'position': (0, 0), 'anchor': 'bottomleft',
+                'cols': ((0, 0, 0), (255, 255, 255)),
+                'freq': 1, 'phase': 0}
+
     # TODO: Reimplement mid/center anchor functionality in cool new way
 
-    def __init__(self, dims, init_unit, end_unit, position, anchor, 
-                 cols, freq, phase=0):
-        self.dims = tuple([int(x) for x in dims])
-        self.init_unit = tuple([to_decimal(x) for x in init_unit])
-        self.end_unit = tuple([to_decimal(x) for x in end_unit])
-        self.position = tuple([to_decimal(x) for x in position])
-        if anchor in graphics.locations.keys():
-            self.anchor = anchor
-        else:
-            raise ValueError
-        self.cols = tuple(cols)
-        self.freq = to_decimal(freq)
-        self.phase = to_decimal(phase)
+    def __init__(self, **keywords):
+        for kw in self.__class__.DEFAULTS.keys():
+            if kw in keywords.keys():
+                setattr(self, kw, keywords[kw])
+            else:
+                setattr(self, kw, self.__class__.DEFAULTS[kw])
         self.reset()
 
     def __setattr__(self, name, value):
+        # Type conversions
+        if name == 'dims':
+            if len(value) != 2:
+                raise ValueError
+            value = tuple([int(x) for x in value])
+        elif name in ['init_unit', 'end_unit', 'position']:
+            if len(value) != 2:
+                raise ValueError
+            value = tuple([to_decimal(x) for x in value])
+        elif name == 'anchor':
+            if value not in graphics.locations.keys():
+                raise ValueError
+        elif name == 'cols':
+            if len(value) != 2:
+                raise ValueError
+            for col in value:
+                if len(col) != 3:
+                    raise ValueError
+            value = tuple([tuple([int(c) for c in col]) for col in value])
+        elif name in ['freq', 'phase']:
+            value = to_decimal(value)
+        # Store value
         self.__dict__[name] = value
+        # Recompute if necessary
         if name in ['dims', 'init_unit', 'end_unit', 
                     'position', 'anchor','cols']:
             self._computed = False
+
+    def save(self, document, parent):
+        """Saves board in specified XML document as child of parent."""
+        board_el = document.createElement('shape')
+        board_el.setAttribute('type', 'board')
+        parent.appendChild(board_el)
+        for var in self.__class__.DEFAULTS.keys():
+            xml_set(document, board_el, var, repr(getattr(self, var)))
+          
+    def load(self, element):
+        """Loads group from XML DOM element."""
+        for var in self.__class__.DEFAULTS.keys():
+            try:
+                value = eval(xml_get(element, XML_NAMESPACE, var))
+            except IndexError:
+                print "warning: missing attribute '{0}'".format(var)
+                value = self.__class__.DEFAULTS[var]
+                print "using default value '{0}' instead...".format(value)
 
     def reset(self, new_phase=None):
         """Resets checkerboard animation back to initial phase."""
@@ -378,7 +427,7 @@ class CheckerBoard(CheckerShape):
         if not self._computed:
             self.compute()
 
-    def update(self, fps=DEFAULT_FPS):
+    def update(self, fps):
         """Increase the current phase of the checkerboard animation."""
         self._prev_phase = self._cur_phase
         if self.freq != 0:
