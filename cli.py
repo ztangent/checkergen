@@ -567,13 +567,16 @@ class CkgCmd(cmd.Cmd):
         except IOError:
             print "error:", str(sys.exc_value)
         except core.FrameOverflowError:
-            print str(sys.exc_value) + ", are you sure you want to continue?"
+            print "warning:", str(sys.exc_value)
+            print "Are you sure you want to continue?"
             while True:
                 try:
                     if self.__class__.yn_parse(raw_input()):
                         self.cur_proj.export(args.dir, args.export_fmt, 
                                              args.folder, True)
-                    break
+                        break
+                    else:
+                        return
                 except TypeError:
                     print str(sys.exc_value)
                 except EOFError:

@@ -11,7 +11,7 @@
         <position>(Decimal('420'), Decimal('320'))</position>
         <anchor>'bottomleft'</anchor>
         <cols>((0, 0, 0), (255, 255, 255))</cols>
-        <freq>Decimal('1')</freq>
+        <freq>Decimal('7')</freq>
         <phase>Decimal('0')</phase>
     </board>
     <board>
@@ -21,8 +21,8 @@
         <position>(Decimal('380'), Decimal('320'))</position>
         <anchor>'bottomright'</anchor>
         <cols>((0, 0, 0), (255, 255, 255))</cols>
-        <freq>Decimal('2')</freq>
-        <phase>Decimal('10')</phase>
+        <freq>Decimal('11')</freq>
+        <phase>Decimal('90')</phase>
     </board>
     <board>
         <dims>(Decimal('5'), Decimal('5'))</dims>
@@ -31,8 +31,8 @@
         <position>(Decimal('420'), Decimal('280'))</position>
         <anchor>'topleft'</anchor>
         <cols>((0, 0, 0), (255, 255, 255))</cols>
-        <freq>Decimal('3')</freq>
-        <phase>Decimal('20')</phase>
+        <freq>Decimal('17')</freq>
+        <phase>Decimal('180')</phase>
     </board>
     <board>
         <dims>(Decimal('5'), Decimal('5'))</dims>
@@ -41,7 +41,7 @@
         <position>(Decimal('380'), Decimal('280'))</position>
         <anchor>'topright'</anchor>
         <cols>((0, 0, 0), (255, 255, 255))</cols>
-        <freq>Decimal('4')</freq>
-        <phase>Decimal('30')</phase>
+        <freq>Decimal('31')</freq>
+        <phase>Decimal('270')</phase>
     </board>
 </project>

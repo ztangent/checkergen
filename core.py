@@ -211,14 +211,14 @@ class CkgProj:
         if export_fmt == None:
             export_fmt = self.export_fmt
 
-        fpps = [self.fps / board.freq for board in 
+        fpps = [round(self.fps / board.freq, 3) for board in 
                 self.boards if board.freq != 0]
         frames = reduce(lcm, fpps)
         count = 0
 
         if frames > MAX_EXPORT_FRAMES and not force:
             msg = 'large number ({0}) of frames to be exported'.\
-                format(MAX_EXPORT_FRAMES)
+                format(frames)
             raise FrameOverflowError(msg)
 
         if folder:
