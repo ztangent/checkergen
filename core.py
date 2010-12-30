@@ -26,9 +26,10 @@ DEFAULT_NAME = 'untitled'
 DEFAULT_FPS = 60
 DEFAULT_RES = 800, 600
 DEFAULT_BG = (127, 127, 127)
-EXPORT_FMTS = ['bmp', 'tga', 'jpg', 'png']
+EXPORT_FMTS = ['png']
 DEFAULT_EXPORT_FMT = 'png'
 MAX_EXPORT_FRAMES = 10000
+DEFAULT_INTERVALS = [0,-1,0]
 
 class FileFormatError(ValueError):
     """Raised when correct file format/extension is not supplied."""
@@ -42,7 +43,8 @@ class CkgProj:
     """Defines a checkergen project, with checkerboards and other settings."""
 
     def __init__(self, name=DEFAULT_NAME, fps=DEFAULT_FPS, res=DEFAULT_RES, 
-                 bg=DEFAULT_BG, export_fmt=DEFAULT_EXPORT_FMT, path=None):
+                 bg=DEFAULT_BG, export_fmt=DEFAULT_EXPORT_FMT,
+                 intervals=DEFAULT_INTERVALS, path=None):
         if path != None:
             self.load(path)
             return
@@ -55,6 +57,7 @@ class CkgProj:
         else:
             msg = 'image format not recognized or supported'
             raise FileFormatError(msg)
+        self.intervals = [to_decimal(i) for i in intervals]
         self.boards = []
 
     def __setattr__(self, name, value):
@@ -67,7 +70,6 @@ class CkgProj:
 
         def xml_get(parent, namespace, name):
             """Returns concatenated text node values inside an element."""
-            # TODO: fix crashing on messed up namespace
             element = parent.getElementsByTagNameNS(namespace, name)[0]
             strings = []
             for node in element.childNodes:
@@ -86,17 +88,25 @@ class CkgProj:
             doc = minidom.parse(project_file)
 
         project = doc.documentElement
-        for var in ['fps', 'res', 'bg', 'export_fmt']:
-            value = eval(xml_get(project, XML_NAMESPACE, var))
+        for var in ['fps', 'res', 'bg', 'export_fmt', 'intervals']:
+            try:
+                value = eval(xml_get(project, XML_NAMESPACE, var))
+            except IndexError:
+                print "error: incomplete or corrupt project file"
+                return
             setattr(self, var, value)
         self.boards = []
         board_els = project.getElementsByTagNameNS(XML_NAMESPACE, 'board')
         board_args = ['dims', 'init_unit', 'end_unit', 'position',
                       'anchor', 'cols', 'freq', 'phase']
         for board_el in board_els:
-            board_dict = dict([(arg, eval(xml_get(board_el, 
-                                                  XML_NAMESPACE, arg)))
-                               for arg in board_args])
+            try:
+                board_dict = dict([(arg, eval(xml_get(board_el, 
+                                                      XML_NAMESPACE, arg)))
+                                   for arg in board_args])
+            except IndexError:
+                print "error: incomplete or corrupt project file"
+                return
             new_board = CheckerBoard(**board_dict)
             self.boards.append(new_board)
 
@@ -129,7 +139,8 @@ class CkgProj:
         project = doc.documentElement
         # Hack below because minidom doesn't support namespaces properly
         project.setAttribute('xmlns', XML_NAMESPACE)
-        for var in ['fps', 'res', 'bg', 'export_fmt']:
+        for var in ['fps', 'res', 'bg', 'export_fmt',
+                    'intervals']:
             xml_set(doc, project, var, repr(getattr(self, var)))
         for board in self.boards:
             board_el = doc.createElement('board')
@@ -170,13 +181,19 @@ class CkgProj:
         graphics.set_clear_color(self.bg)
         window.clear()
         window.set_visible()
-            
+
+        # TODO: Finish this
+        count = 0
+        anim_start = int(round(self.intervals[0]*self.fps))
+        anim_end = int(round(self.intervals[0]+self.intervals[1]*self.fps))
+        anim_over = False
+        
         if logtime:
             timer = Timer()
             timer.start()
             logstring = ''
 
-        while not window.has_exit:
+        while not window.has_exit or anim_over:
             if scaling:
                 fbo.start_render()
                 fbo.clear()
@@ -192,6 +209,7 @@ class CkgProj:
                 canvas.blit(0, 0)
             window.dispatch_events()
             window.flip()
+            count += 1
             if logtime:
                 logstring = '\n'.join([logstring, str(timer.restart())])
         window.close()

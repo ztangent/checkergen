@@ -4,6 +4,7 @@
     <res>(800, 600)</res>
     <bg>(127, 127, 127)</bg>
     <export_fmt>'png'</export_fmt>
+    <intervals>[0, -1, 0]</intervals>
     <board>
         <dims>(Decimal('5'), Decimal('5'))</dims>
         <init_unit>(Decimal('40'), Decimal('40'))</init_unit>
