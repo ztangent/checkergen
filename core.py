@@ -149,7 +149,7 @@ class CkgProj:
         self.groups = []
         group_els = project.getElementsByTagNameNS(XML_NAMESPACE, 'group')
         for group_el in group_els:
-            new_group = CkgGroup()
+            new_group = CkgDisplayGroup()
             new_group.load(group_el)
             self.groups.append(new_group)
 
@@ -292,12 +292,12 @@ class CkgProj:
 
         fbo.delete()
 
-class CkgGroup:
+class CkgDisplayGroup:
 
     DEFAULTS = {'pre': 0, 'post': 0}
 
     def __init__(self, **keywords):
-        """Create a new group of shapes to be displayed.
+        """Create a new group of shapes to be displayed together.
 
         pre -- time in seconds a blank screen is shown before
         shapes in group are displayed

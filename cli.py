@@ -79,8 +79,13 @@ def process_args(args):
             return msg
         args.proj = core.CkgProj(path=args.path)
         os.chdir(os.path.dirname(os.path.abspath(args.path)))
+        try:
+            args.group = args.proj.groups[0]
+        except IndexError:
+            args.group = None
     else:
         args.proj = None
+        args.group = None
         if args.display_flag or args.export_flag:
             msg = 'error: no project file specified for display or export'
             return msg
@@ -148,10 +153,7 @@ class CkgCmd(cmd.Cmd):
             return
         try:
             self.cur_proj = core.CkgProj(path=path)
-        except core.FileFormatError:
-            print "error:", str(sys.exc_value)
-            return
-        except IOError:
+        except (core.FileFormatError, IOError):
             print "error:", str(sys.exc_value)
             return
         os.chdir(os.path.dirname(os.path.abspath(path)))
@@ -392,22 +394,23 @@ class CkgCmd(cmd.Cmd):
         del rmlist[:]
 
     ls_parser = CmdParser(add_help=False, prog='ls',
-                          description='''Lists project settings, checkerboards
-                                         and their attributes.''')
-    ls_parser.add_argument('idlist', nargs='*', metavar='id', type=int,
-                           help='''ids of checkerboards to be listed, all
-                                   are listed if not specified''')
+                          description='''Lists project, display group and
+                                         checkerboard settings. If no group ids
+                                         are specified, all display groups 
+                                         are listed.''')
+    ls_parser.add_argument('gidlist', nargs='*', metavar='gid', type=int,
+                           help='''ids of the display groups to be listed''')
     ls_group = ls_parser.add_mutually_exclusive_group()
     ls_group.add_argument('-s', '--settings', action='store_true',
-                           help='list only settings')
-    ls_group.add_argument('-b', '--boards', action='store_true',
-                           help='list only checkerboards')
+                           help='list only project settings')
+    ls_group.add_argument('-g', '--groups', action='store_true',
+                           help='list only display groups')
 
     def help_ls(self):
         self.__class__.ls_parser.print_help()
 
     def do_ls(self, line):
-        """Lists project settings, checkerboards and their attributes."""
+        """Lists project, display group and checkerboard settings."""
 
         def ls_str(s, seps=[',',';']):
             """Special space-saving output formatter."""
@@ -429,60 +432,80 @@ class CkgCmd(cmd.Cmd):
             print "error:", str(sys.exc_value)
             self.__class__.ls_parser.print_usage()
             return
+        
+        # Remove duplicates and ascending sort
+        args.gidlist = sorted(set(args.gidlist))
 
-        for x in args.idlist[:]:
-            if x >= len(self.cur_proj.boards) or x < 0:
-                args.idlist.remove(x)
-                print "checkerboard", x, "does not exist"
-        if args.idlist == []:
-            args.idlist = range(len(self.cur_proj.boards))
+        if len(self.cur_proj.groups) == 0 and len(args.gidlist) > 0:
+            print 'this project has no display groups that can be listed'
+            args.settings = True
         else:
-            args.boards = True
+            for gid in args.gidlist[:]:
+                if gid >= len(self.cur_proj.groups) or gid < 0:
+                    args.gidlist.remove(gid)
+                    print 'display group', gid, 'does not exist'
+            if args.gidlist == []:
+                args.gidlist = range(len(self.cur_proj.groups))
+            else:
+                # If any (valid) groups are specified
+                # don't show project settings
+                args.groups = True
 
-        if not args.boards:
+        if not args.groups:
             print \
-                'name'.rjust(13),\
+                'name'.rjust(19),\
                 'fps'.rjust(6),\
                 'resolution'.rjust(12),\
                 'bg color'.rjust(16),\
                 'format'.rjust(7)
             print \
-                ls_str(self.cur_proj.name).rjust(13),\
+                ls_str(self.cur_proj.name).rjust(19),\
                 ls_str(self.cur_proj.fps).rjust(6),\
                 ls_str(self.cur_proj.res).rjust(12),\
                 ls_str(self.cur_proj.bg).rjust(16),\
                 ls_str(self.cur_proj.export_fmt).rjust(7)
 
-        if not args.settings and not args.boards:
+        if not args.settings and not args.groups:
             print ''
 
         if not args.settings:
-            print \
-                'id'.rjust(2),\
-                'dims'.rjust(10),\
-                'init_unit'.rjust(14),\
-                'end_unit'.rjust(14),\
-                'position'.rjust(14)
-            for n, board in zip(args.idlist, self.cur_proj.boards):
+            for n in args.gidlist:
+                group = self.cur_proj.groups[n]
                 print \
-                    ls_str(n).rjust(2),\
-                    ls_str(board.dims).rjust(10),\
-                    ls_str(board.init_unit).rjust(14),\
-                    ls_str(board.end_unit).rjust(14),\
-                    ls_str(board.position).rjust(14)        
-            print '\n',\
-                'id'.rjust(2),\
-                'colors'.rjust(27),\
-                'anchor'.rjust(12),\
-                'freq'.rjust(6),\
-                'phase'.rjust(7)
-            for n, board in zip(args.idlist, self.cur_proj.boards):
+                    'group id'.rjust(8),\
+                    'pre'.rjust(10),\
+                    'post'.rjust(10)
                 print \
-                    ls_str(n).rjust(2),\
-                    ls_str(board.cols).rjust(27),\
-                    ls_str(board.anchor).rjust(12),\
-                    ls_str(board.freq).rjust(6),\
-                    ls_str(board.phase).rjust(7)            
+                    ls_str(n).rjust(8),\
+                    ls_str(group.pre).rjust(10),\
+                    ls_str(group.post).rjust(10)
+                print \
+                    'shape id'.rjust(8),\
+                    'dims'.rjust(10),\
+                    'init_unit'.rjust(14),\
+                    'end_unit'.rjust(14),\
+                    'position'.rjust(14)
+                for m, shape in enumerate(group.shapes):
+                    print \
+                        ls_str(n).rjust(8),\
+                        ls_str(shape.dims).rjust(10),\
+                        ls_str(shape.init_unit).rjust(14),\
+                        ls_str(shape.end_unit).rjust(14),\
+                        ls_str(shape.position).rjust(14)
+                print '\n',\
+                    'shape id'.rjust(8),\
+                    'colors'.rjust(27),\
+                    'anchor'.rjust(12),\
+                    'freq'.rjust(6),\
+                    'phase'.rjust(7)
+                for m, shape in enumerate(group.shapes):
+                    print \
+                        ls_str(n).rjust(8),\
+                        ls_str(shape.cols).rjust(27),\
+                        ls_str(shape.anchor).rjust(12),\
+                        ls_str(shape.freq).rjust(6),\
+                        ls_str(shape.phase).rjust(7)
+                print '\n'
 
     display_parser = CmdParser(add_help=False, prog='display',
                                description='''Displays the animation in a

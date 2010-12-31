@@ -45,4 +45,5 @@ if args.cmd_mode:
     mycmd.intro = cli.CMD_INTRO
     mycmd.prompt = cli.CMD_PROMPT
     mycmd.cur_proj = args.proj
+    mycmd.cur_group = args.group
     mycmd.cmdloop()
