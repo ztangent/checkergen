@@ -115,7 +115,7 @@ class CkgCmd(cmd.Cmd):
         """Checks and prompts the user to save if necessary."""
         if self.cur_proj == None:
             return
-        if not self.cur_proj.dirty:
+        if not self.cur_proj._dirty:
             return
         if msg == None:
             msg = 'Would you like to save the current project first? (y/n)'
@@ -157,6 +157,10 @@ class CkgCmd(cmd.Cmd):
             print "error:", str(sys.exc_value)
             return
         os.chdir(os.path.dirname(os.path.abspath(path)))
+        try:
+            self.cur_group = self.cur_proj.groups[0]
+        except IndexError:
+            self.cur_group = None
         print 'project \'{0}\' loaded'.format(self.cur_proj.name)
 
     def do_close(self, line):
@@ -238,9 +242,183 @@ class CkgCmd(cmd.Cmd):
             print "no options specified, please specify at least one"
             self.__class__.set_parser.print_usage()
 
+    mkgrp_parser = CmdParser(add_help=False, prog='mkgrp',
+                             formatter_class=
+                             argparse.ArgumentDefaultsHelpFormatter,
+                             description='''Makes a new display group
+                                            with the given parameters.''')
+    mkgrp_parser.add_argument('pre', type=to_decimal, default=0, nargs='?',
+                              help='''time in seconds a blank screen will
+                                      be shown before shapes are displayed''')
+    mkgrp_parser.add_argument('disp', type=to_decimal,
+                              nargs='?', default='Infinity',
+                              help='''time in seconds shapes will be 
+                                      displayed''')
+    mkgrp_parser.add_argument('post', type=to_decimal, default=0, nargs='?',
+                              help='''time in seconds a blank screen will
+                                      be shown after shapes are displayed''')
+
+    def help_mkgrp(self):
+        self.__class__.mkgrp_parser.print_help()
+
+    def do_mkgrp(self, line):
+        """Makes a display group with the given parameters."""
+        if self.cur_proj == None:
+            print 'no project open, automatically creating project...'
+            self.do_new('')
+        try:
+            args = self.__class__.mkgrp_parser.parse_args(shlex.split(line))
+        except CmdParserError:
+            print "error:", str(sys.exc_value)
+            self.__class__.mkgrp_parser.print_usage()
+            return
+        group_dict = dict([(name, getattr(args, name)) for 
+                           name in public_dir(args)])
+        new_group = core.CkgDisplayGroup(**group_dict)
+        new_id = self.cur_proj.add_group(new_group)
+        print "display group", new_id, "added"
+        self.cur_group = new_group
+        print "group", new_id, "is now the current display group"
+
+    edgrp_parser = CmdParser(add_help=False, prog='edgrp',
+                          description='''Edits attributes of display groups
+                                         specified by ids.''')
+    edgrp_parser.add_argument('idlist', nargs='+', metavar='id', type=int,
+                              help='ids of display groups to be edited')
+    edgrp_parser.add_argument('--pre', type=to_decimal, metavar='SECONDS',
+                              help='''time in seconds a blank screen will
+                                      be shown before shapes are displayed''')
+    edgrp_parser.add_argument('--disp', type=to_decimal, metavar='SECONDS',
+                              help='''time in seconds shapes will be 
+                                      displayed''')
+    edgrp_parser.add_argument('--post', type=to_decimal, metavar='SECONDS',
+                              help='''time in seconds a blank screen will
+                                      be shown after shapes are displayed''')
+    def help_edgrp(self):
+        self.__class__.edgrp_parser.print_help()
+
+    def do_edgrp(self, line):
+        """Edits attributes of checkerboards specified by ids."""
+        if self.cur_proj == None:
+            print 'please create or open a project first'
+            return
+        try:
+            args = self.__class__.edgrp_parser.parse_args(shlex.split(line))
+        except CmdParserError:
+            print "error:", str(sys.exc_value)
+            self.__class__.edgrp_parser.print_usage()
+            return
+        # Remove duplicates and ascending sort
+        args.idlist = sorted(set(args.idlist))
+        for x in args.idlist[:]:
+            if x >= len(self.cur_proj.groups) or x < 0:
+                args.idlist.remove(x)
+                print "checkerboard", x, "does not exist"
+        if args.idlist == []:
+            return
+        names = public_dir(args)
+        names.remove('idlist')
+        noflags = True
+        for name in names:
+            val = getattr(args, name)
+            if val != None:
+                for x in args.idlist:
+                    self.cur_proj.set_group_attr(x, name, val)
+                noflags = False
+        if noflags:
+            print "no options specified, please specify at least one"
+            self.__class__.edgrp_parser.print_usage()
+
+    rmgrp_parser = CmdParser(add_help=False, prog='rmgrp',
+                          description='''Removes display groups specified
+                                         by ids.''')
+    rmgrp_parser.add_argument('idlist', nargs='*', metavar='id', type=int,
+                              help='ids of display groups to be removed')
+    rmgrp_parser.add_argument('-a', '--all', action='store_true',
+                              help='remove all groups from the project')
+
+    def help_rmgrp(self):
+        self.__class__.rmgrp_parser.print_help()
+
+    def do_rmgrp(self, line):
+        """Removes display groups specified by ids"""
+        if self.cur_proj == None:
+            print 'please create or open a project first'
+            return
+        elif self.cur_group == None:
+            print 'current project has no groups to remove'
+            return
+        try:
+            args = self.__class__.rmgrp_parser.parse_args(shlex.split(line))
+        except CmdParserError:
+            print "error:", str(sys.exc_value)
+            self.__class__.rmgrp_parser.print_usage()
+            return
+        rmlist = []
+        if args.all:
+            for group in self.cur_proj.groups[:]:
+                self.cur_proj.del_group(group)
+            print "all display groups removed"
+            return
+        elif len(args.idlist) == 0:
+            print "please specify at least one id"
+        # Remove duplicates and ascending sort
+        args.idlist = sorted(set(args.idlist))
+        for x in args.idlist:
+            if x >= len(self.cur_proj.groups) or x < 0:
+                print "display group", x, "does not exist"
+                continue
+            rmlist.append(self.cur_proj.groups[x])
+            print "display group", x, "removed"
+        for group in rmlist:
+            self.cur_proj.del_group(group)
+        # Remember to point self.cur_group somewhere sane
+        if self.cur_group not in self.cur_proj.groups:
+            if len(self.cur_proj.groups) == 0:
+                self.cur_group = None
+            else:
+                self.cur_group = self.cur_proj.groups[0]
+                print "group 0 is now the current display group"
+
+    chgrp_parser = CmdParser(add_help=False, prog='chgrp',
+                             description='''Changes display group that is 
+                                            currently active for editing.
+                                            Prints current group id if 
+                                            no group id is specified''')
+    chgrp_parser.add_argument('gid', metavar='id', type=int, nargs='?',
+                              help='id of display group to be made active')
+
+    def help_chgrp(self):
+        self.__class__.chgrp_parser.print_help()
+
+    def do_chgrp(self, line):
+        """Changes group that is currently active for editing."""
+        if self.cur_proj == None:
+            print 'please create or open a project first'
+            return
+        elif self.cur_group == None:
+            print 'current project has no groups that can be made active'
+            return
+        try:
+            args = self.__class__.chgrp_parser.parse_args(shlex.split(line))
+        except CmdParserError:
+            print "error:", str(sys.exc_value)
+            self.__class__.chgrp_parser.print_usage()
+            return
+        if args.gid == None:
+            print "group",\
+                self.cur_proj.groups.index(self.cur_group),\
+                "is the current display group"
+        elif args.gid >= len(self.cur_proj.groups) or args.gid < 0:
+            print "group", args.gid, "does not exist"
+        else:
+            self.cur_group = self.cur_proj.groups[args.gid]
+            print "group", args.gid, "is now the current display group"
+
     mk_parser = CmdParser(add_help=False, prog='mk',
-                          description='''Makes a new checkerboard with the 
-                                         given parameters.''')
+                          description='''Makes a new checkerboard in the 
+                                         current group with the given 
+                                         parameters.''')
     mk_parser.add_argument('dims', action=store_tuple(2, ',', to_decimal),
                            help='''width,height of checkerboard in no. of 
                                    unit cells''')
@@ -271,24 +449,27 @@ class CkgCmd(cmd.Cmd):
         if self.cur_proj == None:
             print 'no project open, automatically creating project...'
             self.do_new('')
+        if self.cur_group == None:
+            print 'automatically adding display group...'
+            self.do_mkgrp('')
         try:
             args = self.__class__.mk_parser.parse_args(shlex.split(line))
         except CmdParserError:
             print "error:", str(sys.exc_value)
             self.__class__.mk_parser.print_usage()
             return
-        board_dict = dict([(name, getattr(args, name)) for 
+        shape_dict = dict([(name, getattr(args, name)) for 
                            name in public_dir(args)])
-        new_board = core.CheckerBoard(**board_dict)
-        self.cur_proj.boards.append(new_board)
-        self.cur_proj.dirty = True
-        print "checkerboard", len(self.cur_proj.boards)-1, "added"
+        new_shape = core.CheckerBoard(**shape_dict)
+        new_id = self.cur_proj.add_shape_to_group(self.cur_group, new_shape)
+        print "checkerboard", new_id, "added"
 
     ed_parser = CmdParser(add_help=False, prog='ed',
                           description='''Edits attributes of checkerboards
                                          specified by ids.''')
     ed_parser.add_argument('idlist', nargs='+', metavar='id', type=int,
-                           help='ids of checkerboards to be edited')
+                           help='''ids of checkerboards in the current 
+                                   group to be edited''')
     ed_parser.add_argument('--dims', action=store_tuple(2, ',', to_decimal),
                            help='checkerboard dimensions in unit cells',
                            metavar='WIDTH,HEIGHT')
@@ -326,14 +507,19 @@ class CkgCmd(cmd.Cmd):
         if self.cur_proj == None:
             print 'please create or open a project first'
             return
+        elif self.cur_group == None:
+            print 'current project has no groups, please create one first'
+            return
         try:
             args = self.__class__.ed_parser.parse_args(shlex.split(line))
         except CmdParserError:
             print "error:", str(sys.exc_value)
             self.__class__.ed_parser.print_usage()
             return
+        # Remove duplicates and ascending sort
+        args.idlist = sorted(set(args.idlist))
         for x in args.idlist[:]:
-            if x >= len(self.cur_proj.boards) or x < 0:
+            if x >= len(self.cur_group.shapes) or x < 0:
                 args.idlist.remove(x)
                 print "checkerboard", x, "does not exist"
         if args.idlist == []:
@@ -345,21 +531,21 @@ class CkgCmd(cmd.Cmd):
             val = getattr(args, name)
             if val != None:
                 for x in args.idlist:
-                    setattr(self.cur_proj.boards[x], name, val)
+                    self.cur_proj.set_shape_attr(self.cur_group, x, name, val)
                 noflags = False
         if noflags:
             print "no options specified, please specify at least one"
             self.__class__.ed_parser.print_usage()
-        else:
-            self.cur_proj.dirty = True
 
     rm_parser = CmdParser(add_help=False, prog='rm',
                           description='''Removes checkerboards specified
                                          by ids.''')
     rm_parser.add_argument('idlist', nargs='*', metavar='id', type=int,
-                           help='ids of checkerboards to be removed')
+                           help='''ids of checkerboards in the current group
+                                   to be removed''')
     rm_parser.add_argument('-a', '--all', action='store_true',
-                           help='remove all checkerboards')
+                           help='''remove all checkerboards in the 
+                                   current group''')
 
     def help_rm(self):
         self.__class__.rm_parser.print_help()
@@ -369,6 +555,9 @@ class CkgCmd(cmd.Cmd):
         if self.cur_proj == None:
             print 'please create or open a project first'
             return
+        elif self.cur_group == None:
+            print 'current project has no groups, no boards to remove'
+            return
         try:
             args = self.__class__.rm_parser.parse_args(shlex.split(line))
         except CmdParserError:
@@ -377,21 +566,22 @@ class CkgCmd(cmd.Cmd):
             return
         rmlist = []
         if args.all:
-            del self.cur_proj.boards[:]
+            for shape in self.cur_group.shapes:
+                self.cur_proj.del_shape_from_group(self.cur_group, shape)
             print "all checkerboards removed"
             return
         elif len(args.idlist) == 0:
             print "please specify at least one id"
+        # Remove duplicates and ascending sort
+        args.idlist = sorted(set(args.idlist))
         for x in args.idlist:
-            if x >= len(self.cur_proj.boards) or x < 0:
+            if x >= len(self.cur_group.shapes) or x < 0:
                 print "checkerboard", x, "does not exist"
                 continue
-            rmlist.append(self.cur_proj.boards[x])
+            rmlist.append(self.cur_group.shapes[x])
             print "checkerboard", x, "removed"
-        for board in rmlist:
-            self.cur_proj.boards.remove(board)
-        self.cur_proj.dirty = True
-        del rmlist[:]
+        for shape in rmlist:
+            self.cur_proj.del_shape_from_group(self.cur_group, shape)
 
     ls_parser = CmdParser(add_help=False, prog='ls',
                           description='''Lists project, display group and
@@ -436,8 +626,9 @@ class CkgCmd(cmd.Cmd):
         # Remove duplicates and ascending sort
         args.gidlist = sorted(set(args.gidlist))
 
-        if len(self.cur_proj.groups) == 0 and len(args.gidlist) > 0:
-            print 'this project has no display groups that can be listed'
+        if len(self.cur_proj.groups) == 0:
+            if len(args.gidlist) > 0:
+                print 'this project has no display groups that can be listed'
             args.settings = True
         else:
             for gid in args.gidlist[:]:
@@ -452,60 +643,71 @@ class CkgCmd(cmd.Cmd):
                 args.groups = True
 
         if not args.groups:
+            print 'PROJECT SETTINGS'.center(70,'*')
             print \
-                'name'.rjust(19),\
+                'name'.rjust(13),\
                 'fps'.rjust(6),\
                 'resolution'.rjust(12),\
                 'bg color'.rjust(16),\
                 'format'.rjust(7)
             print \
-                ls_str(self.cur_proj.name).rjust(19),\
+                ls_str(self.cur_proj.name).rjust(13),\
                 ls_str(self.cur_proj.fps).rjust(6),\
                 ls_str(self.cur_proj.res).rjust(12),\
                 ls_str(self.cur_proj.bg).rjust(16),\
                 ls_str(self.cur_proj.export_fmt).rjust(7)
 
         if not args.settings and not args.groups:
+            # Insert empty line if both groups and project 
+            # settings are listed
             print ''
 
         if not args.settings:
-            for n in args.gidlist:
+            for i, n in enumerate(args.gidlist):
+                if i != 0:
+                    # Print newline seperator between each group
+                    print ''
                 group = self.cur_proj.groups[n]
+                print 'GROUP {n}'.format(n=n).center(70,'*')
                 print \
-                    'group id'.rjust(8),\
-                    'pre'.rjust(10),\
-                    'post'.rjust(10)
+                    'pre-display'.rjust(20),\
+                    'display'.rjust(20),\
+                    'post-display'.rjust(20)
                 print \
-                    ls_str(n).rjust(8),\
-                    ls_str(group.pre).rjust(10),\
-                    ls_str(group.post).rjust(10)
-                print \
-                    'shape id'.rjust(8),\
-                    'dims'.rjust(10),\
-                    'init_unit'.rjust(14),\
-                    'end_unit'.rjust(14),\
-                    'position'.rjust(14)
-                for m, shape in enumerate(group.shapes):
+                    ls_str(group.pre).rjust(20),\
+                    ls_str(group.disp).rjust(20),\
+                    ls_str(group.post).rjust(20)
+                if len(group.shapes) > 0:
                     print \
-                        ls_str(n).rjust(8),\
-                        ls_str(shape.dims).rjust(10),\
-                        ls_str(shape.init_unit).rjust(14),\
-                        ls_str(shape.end_unit).rjust(14),\
-                        ls_str(shape.position).rjust(14)
-                print '\n',\
-                    'shape id'.rjust(8),\
-                    'colors'.rjust(27),\
-                    'anchor'.rjust(12),\
-                    'freq'.rjust(6),\
-                    'phase'.rjust(7)
-                for m, shape in enumerate(group.shapes):
-                    print \
-                        ls_str(n).rjust(8),\
-                        ls_str(shape.cols).rjust(27),\
-                        ls_str(shape.anchor).rjust(12),\
-                        ls_str(shape.freq).rjust(6),\
-                        ls_str(shape.phase).rjust(7)
-                print '\n'
+                        ''.rjust(2),\
+                        'shape id'.rjust(8),\
+                        'dims'.rjust(10),\
+                        'init_unit'.rjust(14),\
+                        'end_unit'.rjust(14),\
+                        'position'.rjust(14)
+                    for m, shape in enumerate(group.shapes):
+                        print \
+                            ''.rjust(2),\
+                            ls_str(m).rjust(8),\
+                            ls_str(shape.dims).rjust(10),\
+                            ls_str(shape.init_unit).rjust(14),\
+                            ls_str(shape.end_unit).rjust(14),\
+                            ls_str(shape.position).rjust(14)
+                    print '\n',\
+                        ''.rjust(2),\
+                        'shape id'.rjust(8),\
+                        'colors'.rjust(27),\
+                        'anchor'.rjust(12),\
+                        'freq'.rjust(6),\
+                        'phase'.rjust(7)
+                    for m, shape in enumerate(group.shapes):
+                        print \
+                            ''.rjust(2),\
+                            ls_str(m).rjust(8),\
+                            ls_str(shape.cols).rjust(27),\
+                            ls_str(shape.anchor).rjust(12),\
+                            ls_str(shape.freq).rjust(6),\
+                            ls_str(shape.phase).rjust(7)
 
     display_parser = CmdParser(add_help=False, prog='display',
                                description='''Displays the animation in a
@@ -608,11 +810,15 @@ class CkgCmd(cmd.Cmd):
 
     def do_quit(self, line):
         """Quits the program."""
+        if self.save_check():
+            return
         return True
 
     def do_EOF(self, line):
         """Typing Ctrl-D issues this command, which quits the program."""
         print '\r'
+        if self.save_check():
+            return
         return True
 
     def help_help(self):

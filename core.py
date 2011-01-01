@@ -117,8 +117,46 @@ class CkgProj:
         # Store value
         self.__dict__[name] = value
         # Set dirty bit
-        if name != 'dirty':
-            self.dirty = True
+        if name != '_dirty':
+            self._dirty = True
+
+    def add_group(self, group):
+        """Append group to list and set dirty bit."""
+        self.groups.append(group)
+        self._dirty = True
+        return self.groups.index(group)
+
+    def del_group(self, group):
+        """Remove group to list and set dirty bit."""
+        self.groups.remove(group)
+        self._dirty = True
+
+    def add_shape_to_group(self, group, shape):
+        """Add shape to group specified by id and set dirty bit."""
+        if group not in self.groups:
+            raise ValueError
+        group.shapes.append(shape)
+        self._dirty = True
+        return group.shapes.index(shape)
+
+    def del_shape_from_group(self, group, shape):
+        """Removes shape from group specified by id and set dirty bit."""
+        if group not in self.groups:
+            raise ValueError
+        group.shapes.remove(shape)
+        self._dirty = True
+   
+    def set_group_attr(self, gid, name, value):
+        """Set attribute of a group specified by id and set dirty bit."""
+        setattr(self.groups[gid], name, value)
+        self._dirty = True
+
+    def set_shape_attr(self, group, sid, name, value):
+        """Set attribute of a shape specified by id and set dirty bit."""
+        if group not in self.groups:
+            raise ValueError
+        setattr(group.shapes[sid], name, value)
+        self._dirty = True
 
     def load(self, path):
         """Loads project from specified path."""
@@ -153,7 +191,7 @@ class CkgProj:
             new_group.load(group_el)
             self.groups.append(new_group)
 
-        self.dirty = False
+        self._dirty = False
 
     def save(self, path):
         """Saves project to specified path as an XML document."""
@@ -177,7 +215,7 @@ class CkgProj:
         with open(path, 'w') as project_file:
             project_file.write(xml_pretty_print(doc,indent='    '))
 
-        self.dirty = False
+        self._dirty = False
 
         return path
 
@@ -294,13 +332,16 @@ class CkgProj:
 
 class CkgDisplayGroup:
 
-    DEFAULTS = {'pre': 0, 'post': 0}
+    DEFAULTS = {'pre': 0, 'disp': 'Infinity', 'post': 0}
 
     def __init__(self, **keywords):
         """Create a new group of shapes to be displayed together.
 
         pre -- time in seconds a blank screen is shown before
         shapes in group are displayed
+
+        disp -- time in seconds the shapes in the group are displayed,
+        negative numbers result in shapes being displayed forever
 
         post -- time in seconds a blank screen is shown after
         shapes in group are displayed
@@ -314,7 +355,7 @@ class CkgDisplayGroup:
         self.shapes = []
 
     def __setattr__(self, name, value):
-        if name in ['pre', 'post']:
+        if name in self.__class__.DEFAULTS:
             value = to_decimal(value)
         self.__dict__[name] = value
 
