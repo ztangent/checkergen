@@ -219,9 +219,16 @@ class CkgProj:
 
         return path
 
-    def display(self, fullscreen=False, logtime=False):
-        for board in self.boards:
-            board.reset()
+    def display(self, fullscreen=False, logtime=False, group_queue=[]):
+        anim_over = False
+        if group_queue == []:
+            group_queue = list(reversed(self.groups))
+        for group in group_queue:
+            group.reset()
+        try:
+            cur_group = group_queue.pop()
+        except IndexError:
+            cur_group = None
         fix_cross = graphics.Cross([r/2 for r in self.res], (20, 20))
 
         scaling = False
@@ -244,27 +251,27 @@ class CkgProj:
         graphics.set_clear_color(self.bg)
         window.clear()
         window.set_visible()
-
-        # TODO: Finish this
-        count = 0
-        anim_start = int(round(self.intervals[0]*self.fps))
-        anim_end = int(round(self.intervals[0]+self.intervals[1]*self.fps))
-        anim_over = False
         
         if logtime:
             timer = Timer()
             timer.start()
             logstring = ''
 
-        while not window.has_exit or anim_over:
+        while not (window.has_exit or anim_over):
             if scaling:
                 fbo.start_render()
                 fbo.clear()
             else:
                 window.clear()
-            for board in self.boards:
-                board.draw()
-                board.update(self.fps)
+            if cur_group != None:
+                cur_group.draw()
+                group_over = cur_group.update(self.fps)
+                # Check if current display group has finished displaying
+                if group_over:
+                    try:
+                        cur_group = group_queue.pop()
+                    except IndexError:
+                        anim_over = True
             fix_cross.draw()
             if scaling:
                 fbo.end_render()
@@ -272,7 +279,6 @@ class CkgProj:
                 canvas.blit(0, 0)
             window.dispatch_events()
             window.flip()
-            count += 1
             if logtime:
                 logstring = '\n'.join([logstring, str(timer.restart())])
         window.close()
@@ -353,12 +359,50 @@ class CkgDisplayGroup:
             else:
                 setattr(self, kw, self.__class__.DEFAULTS[kw])
         self.shapes = []
+        self.reset()
 
     def __setattr__(self, name, value):
         if name in self.__class__.DEFAULTS:
             value = to_decimal(value)
         self.__dict__[name] = value
 
+    def reset(self):
+        self._count = 0
+        self._lower_bound = self.pre
+        self._upper_bound = self.pre + self.disp
+        self._end_point = self.pre + self.disp + self.post
+        if self._lower_bound == 0 and self._upper_bound > 0:
+            self._visible = True
+        else:
+            self._visible = False
+        for shape in self.shapes:
+            shape.reset()
+
+    def draw(self, lazy=False):
+        if self._visible:
+            for shape in self.shapes:
+                if lazy:
+                    shape.lazydraw()
+                else:
+                    shape.draw()
+
+    def update(self, fps):
+        self._count += 1
+        # Check whether count is in the interval where
+        # shapes should be visible
+        if ((self._lower_bound * fps) <= self._count and
+            (self._upper_bound * fps) > self._count):
+            self._visible = True
+        else:
+            self._visible = False
+        if self._visible:
+            for shape in self.shapes:
+                shape.update(fps)
+        # Return true if count has reached the end
+        if self._count >= (self._end_point * fps):
+            return True
+        else:
+            return False
 
     def save(self, document, parent):
         """Saves group in specified XML document as child of parent."""
@@ -378,6 +422,7 @@ class CkgDisplayGroup:
                 print "warning: missing attribute '{0}'".format(var)
                 value = self.__class__.DEFAULTS[var]
                 print "using default value '{0}' instead...".format(value)
+            setattr(self, var, value)
         shape_els = element.getElementsByTagNameNS(XML_NAMESPACE, 'shape')
         for shape_el in shape_els:
             # TODO: Make load code shape-agnostic
@@ -457,6 +502,7 @@ class CheckerBoard(CheckerShape):
                 print "warning: missing attribute '{0}'".format(var)
                 value = self.__class__.DEFAULTS[var]
                 print "using default value '{0}' instead...".format(value)
+            setattr(self, var, value)
 
     def reset(self, new_phase=None):
         """Resets checkerboard animation back to initial phase."""
