@@ -1,48 +1,52 @@
 <?xml version="1.0" ?>
 <project xmlns="http://github.com/ZOMGxuan/checkergen">
-    <fps>Decimal('60')</fps>
+    <export_fmt>'png'</export_fmt>
     <res>(800, 600)</res>
     <bg>(127, 127, 127)</bg>
-    <export_fmt>'png'</export_fmt>
-    <intervals>[0, -1, 0]</intervals>
-    <board>
-        <dims>(Decimal('5'), Decimal('5'))</dims>
-        <init_unit>(Decimal('40'), Decimal('40'))</init_unit>
-        <end_unit>(Decimal('50'), Decimal('50'))</end_unit>
-        <position>(Decimal('420'), Decimal('320'))</position>
-        <anchor>'bottomleft'</anchor>
-        <cols>((0, 0, 0), (255, 255, 255))</cols>
-        <freq>Decimal('7')</freq>
-        <phase>Decimal('0')</phase>
-    </board>
-    <board>
-        <dims>(Decimal('5'), Decimal('5'))</dims>
-        <init_unit>(Decimal('40'), Decimal('40'))</init_unit>
-        <end_unit>(Decimal('50'), Decimal('50'))</end_unit>
-        <position>(Decimal('380'), Decimal('320'))</position>
-        <anchor>'bottomright'</anchor>
-        <cols>((0, 0, 0), (255, 255, 255))</cols>
-        <freq>Decimal('11')</freq>
-        <phase>Decimal('90')</phase>
-    </board>
-    <board>
-        <dims>(Decimal('5'), Decimal('5'))</dims>
-        <init_unit>(Decimal('40'), Decimal('40'))</init_unit>
-        <end_unit>(Decimal('50'), Decimal('50'))</end_unit>
-        <position>(Decimal('420'), Decimal('280'))</position>
-        <anchor>'topleft'</anchor>
-        <cols>((0, 0, 0), (255, 255, 255))</cols>
-        <freq>Decimal('17')</freq>
-        <phase>Decimal('180')</phase>
-    </board>
-    <board>
-        <dims>(Decimal('5'), Decimal('5'))</dims>
-        <init_unit>(Decimal('40'), Decimal('40'))</init_unit>
-        <end_unit>(Decimal('50'), Decimal('50'))</end_unit>
-        <position>(Decimal('380'), Decimal('280'))</position>
-        <anchor>'topright'</anchor>
-        <cols>((0, 0, 0), (255, 255, 255))</cols>
-        <freq>Decimal('31')</freq>
-        <phase>Decimal('270')</phase>
-    </board>
+    <fps>Decimal('60')</fps>
+    <group>
+        <pre>Decimal('5')</pre>
+        <disp>Decimal('5')</disp>
+        <post>Decimal('5')</post>
+        <shape type="board">
+            <dims>(Decimal('5'), Decimal('5'))</dims>
+            <init_unit>(Decimal('40'), Decimal('40'))</init_unit>
+            <end_unit>(Decimal('50'), Decimal('50'))</end_unit>
+            <position>(Decimal('420'), Decimal('320'))</position>
+            <anchor>'bottomleft'</anchor>
+            <cols>((0, 0, 0), (255, 255, 255))</cols>
+            <freq>Decimal('7')</freq>
+            <phase>Decimal('0')</phase>
+        </shape>
+        <shape type="board">
+            <dims>(Decimal('5'), Decimal('5'))</dims>
+            <init_unit>(Decimal('40'), Decimal('40'))</init_unit>
+            <end_unit>(Decimal('50'), Decimal('50'))</end_unit>
+            <position>(Decimal('380'), Decimal('320'))</position>
+            <anchor>'bottomright'</anchor>
+            <cols>((0, 0, 0), (255, 255, 255))</cols>
+            <freq>Decimal('11')</freq>
+            <phase>Decimal('90')</phase>
+        </shape>
+        <shape type="board">
+            <dims>(Decimal('5'), Decimal('5'))</dims>
+            <init_unit>(Decimal('40'), Decimal('40'))</init_unit>
+            <end_unit>(Decimal('50'), Decimal('50'))</end_unit>
+            <position>(Decimal('420'), Decimal('280'))</position>
+            <anchor>'topleft'</anchor>
+            <cols>((0, 0, 0), (255, 255, 255))</cols>
+            <freq>Decimal('17')</freq>
+            <phase>Decimal('180')</phase>
+        </shape>
+        <shape type="board">
+            <dims>(Decimal('5'), Decimal('5'))</dims>
+            <init_unit>(Decimal('40'), Decimal('40'))</init_unit>
+            <end_unit>(Decimal('50'), Decimal('50'))</end_unit>
+            <position>(Decimal('380'), Decimal('280'))</position>
+            <anchor>'topright'</anchor>
+            <cols>((0, 0, 0), (255, 255, 255))</cols>
+            <freq>Decimal('31')</freq>
+            <phase>Decimal('270')</phase>
+        </shape>
+    </group>
 </project>
