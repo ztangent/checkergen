@@ -115,7 +115,7 @@ class CkgCmd(cmd.Cmd):
         """Checks and prompts the user to save if necessary."""
         if self.cur_proj == None:
             return
-        if not self.cur_proj._dirty:
+        if not self.cur_proj.is_dirty():
             return
         if msg == None:
             msg = 'Would you like to save the current project first? (y/n)'
@@ -330,8 +330,8 @@ class CkgCmd(cmd.Cmd):
             self.__class__.edgrp_parser.print_usage()
 
     rmgrp_parser = CmdParser(add_help=False, prog='rmgrp',
-                          description='''Removes display groups specified
-                                         by ids.''')
+                             description='''Removes display groups specified
+                                            by ids.''')
     rmgrp_parser.add_argument('idlist', nargs='*', metavar='id', type=int,
                               help='ids of display groups to be removed')
     rmgrp_parser.add_argument('-a', '--all', action='store_true',
@@ -718,18 +718,22 @@ class CkgCmd(cmd.Cmd):
                                 help='sets fullscreen mode, ESC to quit')
     display_parser.add_argument('-l', '--logtime', action='store_true',
                                 help='output frame duration to a log file')
-    display_parser.add_argument('-p', '--priority',
+    display_parser.add_argument('-p', '--priority', metavar='LEVEL',
                                 help='''set priority while displaying,
                                         higher priority results in
                                         less dropped frames (choices:
                                         0-3, low, normal, high,
                                         realtime)''')
+    display_parser.add_argument('idlist', nargs='*', metavar='id', type=int,
+                                help='''list of display groups to be displayed
+                                        in the specified order (default: order
+                                        by id, i.e. group 0 is first)''')
                                 
     def help_display(self):
         self.__class__.display_parser.print_help()
 
     def do_display(self, line):
-        """Displays the animation in window or in fullscreen"""
+        """Displays the animation in a window or in fullscreen"""
         if self.cur_proj == None:
             print 'please create or open a project first'
             return
@@ -739,6 +743,12 @@ class CkgCmd(cmd.Cmd):
             print "error:", str(sys.exc_value)
             self.__class__.display_parser.print_usage()
             return
+        for i in set(args.idlist):
+            if i >= len(self.cur_proj.groups) or i < 0:
+                print 'error: group', i, 'does not exist'
+                return
+        group_queue = list(reversed([self.cur_proj.groups[i]
+                                     for i in args.idlist]))
         if args.priority != None:
             if args.priority.isdigit():
                 args.priority = int(args.priority)
@@ -748,7 +758,9 @@ class CkgCmd(cmd.Cmd):
                 print "error:", str(sys.exc_value)
                 print "continuing..."
         try:
-            self.cur_proj.display(args.fullscreen, args.logtime)
+            self.cur_proj.display(fullscreen=args.fullscreen,
+                                  logtime=args.logtime,
+                                  group_queue=group_queue)
         except IOError:
             print "error:", str(sys.exc_value)
             return

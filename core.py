@@ -158,6 +158,9 @@ class CkgProj:
         setattr(group.shapes[sid], name, value)
         self._dirty = True
 
+    def is_dirty(self):
+        return self._dirty
+
     def load(self, path):
         """Loads project from specified path."""
 
@@ -220,15 +223,28 @@ class CkgProj:
         return path
 
     def display(self, fullscreen=False, logtime=False, group_queue=[]):
+        """Displays the project animation on the screen.
+
+        fullscreen -- animation is displayed fullscreen if true, stretched
+        to fit if necessary
+
+        logtime -- duration of each frame is saved to a logfile if true
+
+        group_queue -- queue of groups to be displayed (in reverse order),
+        defaults to order of groups in project (i.e. groups[0] first, etc.)
+
+        """
+
+        # Initialize groups, set current group
         anim_over = False
         if group_queue == []:
             group_queue = list(reversed(self.groups))
-        for group in group_queue:
-            group.reset()
         try:
             cur_group = group_queue.pop()
+            cur_group.reset()
         except IndexError:
             cur_group = None
+        # Create fixation cross
         fix_cross = graphics.Cross([r/2 for r in self.res], (20, 20))
 
         scaling = False
@@ -270,6 +286,7 @@ class CkgProj:
                 if group_over:
                     try:
                         cur_group = group_queue.pop()
+                        cur_group.reset()
                     except IndexError:
                         anim_over = True
             fix_cross.draw()
@@ -367,6 +384,7 @@ class CkgDisplayGroup:
         self.__dict__[name] = value
 
     def reset(self):
+        """Resets internal count and all contained shapes."""
         self._count = 0
         self._lower_bound = self.pre
         self._upper_bound = self.pre + self.disp
@@ -379,6 +397,7 @@ class CkgDisplayGroup:
             shape.reset()
 
     def draw(self, lazy=False):
+        """Draws all contained shapes during the appropriate interval."""
         if self._visible:
             for shape in self.shapes:
                 if lazy:
@@ -387,7 +406,12 @@ class CkgDisplayGroup:
                     shape.draw()
 
     def update(self, fps):
+        """Increments internal count, makes group visible when appropriate."""
         self._count += 1
+        # Update contained shapes
+        if self._visible:
+            for shape in self.shapes:
+                shape.update(fps)
         # Check whether count is in the interval where
         # shapes should be visible
         if ((self._lower_bound * fps) <= self._count and
@@ -395,9 +419,6 @@ class CkgDisplayGroup:
             self._visible = True
         else:
             self._visible = False
-        if self._visible:
-            for shape in self.shapes:
-                shape.update(fps)
         # Return true if count has reached the end
         if self._count >= (self._end_point * fps):
             return True
@@ -518,8 +539,8 @@ class CheckerBoard(CheckerShape):
         """Increase the current phase of the checkerboard animation."""
         self._prev_phase = self._cur_phase
         if self.freq != 0:
-            fpp = fps / self.freq
-            self._cur_phase += 360 / fpp
+            degs_per_frame = 360 * self.freq / fps
+            self._cur_phase += degs_per_frame
             if self._cur_phase >= 360:
                 self._cur_phase %= 360
 
