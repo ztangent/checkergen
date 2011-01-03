@@ -222,13 +222,16 @@ class CkgProj:
 
         return path
 
-    def display(self, fullscreen=False, logtime=False, group_queue=[]):
+    def display(self, fullscreen=False, logtime=False, logdur=False,
+                group_queue=[]):
         """Displays the project animation on the screen.
 
         fullscreen -- animation is displayed fullscreen if true, stretched
         to fit if necessary
 
-        logtime -- duration of each frame is saved to a logfile if true
+        logtime -- timestamp of each frame is saved to a logfile if true
+
+        logdur -- duration of each frame is saved to a logfile if true
 
         group_queue -- queue of groups to be displayed (in reverse order),
         defaults to order of groups in project (i.e. groups[0] first, etc.)
@@ -269,10 +272,16 @@ class CkgProj:
         window.clear()
         window.set_visible()
         
-        if logtime:
+        if logtime and logdur:
+            logstring = ''
+            stamp = Timer()
+            dur = Timer()
+            stamp.start()
+            dur.start()
+        elif logtime or logdur:
+            logstring = ''
             timer = Timer()
             timer.start()
-            logstring = ''
 
         while not (window.has_exit or anim_over):
             if scaling:
@@ -297,14 +306,20 @@ class CkgProj:
                 canvas.blit(0, 0)
             window.dispatch_events()
             window.flip()
-            if logtime:
+            if logtime and logdur:
+                logstring = '\n'.join([logstring, str(stamp.elapsed())])
+                logstring = '\t'.join([logstring, str(dur.restart())])
+            elif logtime:
+                logstring = '\n'.join([logstring, str(timer.elapsed())])
+            elif logdur:
                 logstring = '\n'.join([logstring, str(timer.restart())])
+
         window.close()
         if scaling:
             fbo.delete()
             del canvas
 
-        if logtime:
+        if logtime or logdur:
             filename = '{0}.log'.format(self.name)
             with open(filename, 'w') as logfile:
                 logfile.write(logstring)

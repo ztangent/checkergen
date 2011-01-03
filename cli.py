@@ -716,8 +716,10 @@ class CkgCmd(cmd.Cmd):
                                               to realtime.''')
     display_parser.add_argument('-f', '--fullscreen', action='store_true',
                                 help='sets fullscreen mode, ESC to quit')
-    display_parser.add_argument('-l', '--logtime', action='store_true',
-                                help='output frame duration to a log file')
+    display_parser.add_argument('-lt', '--logtime', action='store_true',
+                                help='output frame timestamps to a log file')
+    display_parser.add_argument('-ld', '--logdur', action='store_true',
+                                help='output frame durations to a log file')
     display_parser.add_argument('-p', '--priority', metavar='LEVEL',
                                 help='''set priority while displaying,
                                         higher priority results in
@@ -760,6 +762,7 @@ class CkgCmd(cmd.Cmd):
         try:
             self.cur_proj.display(fullscreen=args.fullscreen,
                                   logtime=args.logtime,
+                                  logdur=args.logdur,
                                   group_queue=group_queue)
         except IOError:
             print "error:", str(sys.exc_value)
