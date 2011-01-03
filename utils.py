@@ -5,16 +5,6 @@ import time
 import math
 from decimal import *
 
-def gcd(a, b):
-    """Return greatest common divisor using Euclid's Algorithm."""
-    while b > 0:      
-        a, b = b, a % b
-    return a
-
-def lcm(a, b):
-    """Return lowest common multiple."""
-    return a * b // gcd(a, b)
-
 def numdigits(x):
     """Returns number of digits in a decimal integer."""
     if x == 0:
