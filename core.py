@@ -18,6 +18,7 @@ from xml.dom import minidom
 import pyglet
 
 import graphics
+import signals
 from utils import *
 
 CKG_FMT = 'ckg'
@@ -223,7 +224,7 @@ class CkgProj:
         return path
 
     def display(self, fullscreen=False, logtime=False, logdur=False,
-                group_queue=[]):
+                sigser=False, sigpar=False, group_queue=[]):
         """Displays the project animation on the screen.
 
         fullscreen -- animation is displayed fullscreen if true, stretched
@@ -232,6 +233,10 @@ class CkgProj:
         logtime -- timestamp of each frame is saved to a logfile if true
 
         logdur -- duration of each frame is saved to a logfile if true
+
+        sigser -- send signals through serial port when each group is shown
+
+        sigpar -- send signals through parallel port when each group is shown
 
         group_queue -- queue of groups to be displayed (in reverse order),
         defaults to order of groups in project (i.e. groups[0] first, etc.)
@@ -250,6 +255,11 @@ class CkgProj:
             cur_group.reset()
         except IndexError:
             cur_group = None
+
+        if sigser:
+            signals.ser_init()
+        if sigpar:
+            signals.par_init()
 
         scaling = False
         if fullscreen:
@@ -271,7 +281,7 @@ class CkgProj:
         graphics.set_clear_color(self.bg)
         window.clear()
         window.set_visible()
-        
+
         if logtime and logdur:
             logstring = ''
             stamp = Timer()
@@ -291,7 +301,9 @@ class CkgProj:
                 window.clear()
             if cur_group != None:
                 cur_group.draw()
-                group_over = cur_group.update(self.fps)
+                group_over = cur_group.update(self.fps,
+                                              sigser=sigser,
+                                              sigpar=sigpar)
                 # Check if current display group has finished displaying
                 if group_over:
                     try:
@@ -323,6 +335,11 @@ class CkgProj:
             filename = '{0}.log'.format(self.name)
             with open(filename, 'w') as logfile:
                 logfile.write(logstring)
+
+        if sigser:
+            signals.ser_quit()
+        if sigpar:
+            signals.par_quit()
 
     def export(self, export_dir, export_duration, group_queue=[],
                export_fmt=None, folder=True, force=False):
@@ -447,7 +464,7 @@ class CkgDisplayGroup:
                 else:
                     shape.draw()
 
-    def update(self, fps):
+    def update(self, fps, sigser=False, sigpar=False):
         """Increments internal count, makes group visible when appropriate."""
         self._count += 1
         # Update contained shapes
@@ -459,8 +476,16 @@ class CkgDisplayGroup:
         if ((self._lower_bound * fps) <= self._count and
             (self._upper_bound * fps) > self._count):
             self._visible = True
+            if sigser:
+                signals.ser_send_on()
+            if sigpar:
+                signals.par_send_on()
         else:
             self._visible = False
+            if sigser:
+                signals.ser_send_off()
+            if sigpar:
+                signals.par_send_off()
         # Return true if count has reached the end
         if self._count >= (self._end_point * fps):
             return True

@@ -6,6 +6,7 @@ provided.
 Requirements:
 Python 2.7 or Python 2.6 + argparse module
 pyglet (version >= 1.1.4 recommended)
+pySerial if you want to send sync signals via a serial port
 pyParallel if you want to send sync signals via a parallel port
 (see pyParallel webpage for other requirements)
 pywin32 if you want to increase process priority on Windows

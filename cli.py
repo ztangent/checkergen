@@ -716,16 +716,22 @@ class CkgCmd(cmd.Cmd):
                                               to realtime.''')
     display_parser.add_argument('-f', '--fullscreen', action='store_true',
                                 help='sets fullscreen mode, ESC to quit')
-    display_parser.add_argument('-lt', '--logtime', action='store_true',
-                                help='output frame timestamps to a log file')
-    display_parser.add_argument('-ld', '--logdur', action='store_true',
-                                help='output frame durations to a log file')
     display_parser.add_argument('-p', '--priority', metavar='LEVEL',
                                 help='''set priority while displaying,
                                         higher priority results in
                                         less dropped frames (choices:
                                         0-3, low, normal, high,
                                         realtime)''')
+    display_parser.add_argument('-lt', '--logtime', action='store_true',
+                                help='output frame timestamps to a log file')
+    display_parser.add_argument('-ld', '--logdur', action='store_true',
+                                help='output frame durations to a log file')
+    display_parser.add_argument('-ss', '--sigser', action='store_true',
+                                help='''send signals through the serial port 
+                                        when shapes are being displayed''')
+    display_parser.add_argument('-sp', '--sigpar', action='store_true',
+                                help='''send signals through the parallel port 
+                                        when shapes are being displayed''')
     display_parser.add_argument('idlist', nargs='*', metavar='id', type=int,
                                 help='''list of display groups to be displayed
                                         in the specified order (default: order
@@ -763,8 +769,10 @@ class CkgCmd(cmd.Cmd):
             self.cur_proj.display(fullscreen=args.fullscreen,
                                   logtime=args.logtime,
                                   logdur=args.logdur,
+                                  sigser=args.sigser,
+                                  sigpar=args.sigpar,
                                   group_queue=group_queue)
-        except IOError:
+        except (IOError, NotImplementedError):
             print "error:", str(sys.exc_value)
             return
         if args.priority != None:
