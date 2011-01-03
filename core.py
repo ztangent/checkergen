@@ -27,9 +27,11 @@ EXPORT_FMTS = ['png']
 MAX_EXPORT_FRAMES = 100000
 PRERENDER_TO_TEXTURE = False
 
-def xml_get(parent, namespace, name):
+def xml_get(parent, namespace, name, index=0):
     """Returns concatenated text node values inside an element."""
-    element = parent.getElementsByTagNameNS(namespace, name)[0]
+    element = [node for node in parent.childNodes if
+               node.localName == name and 
+               node.namespaceURI == namespace][index]
     strings = []
     for node in element.childNodes:
         if node.nodeType == node.TEXT_NODE:
@@ -66,7 +68,9 @@ class CkgProj:
                 'fps': 60,
                 'res': (800, 600),
                 'bg': (127, 127, 127),
-                'export_fmt': 'png'}
+                'export_fmt': 'png',
+                'pre': 0,
+                'post': 0}
 
     def __init__(self, **keywords):
         """Initializes a new project, or loads it from a path.
@@ -86,6 +90,12 @@ class CkgProj:
 
         export_fmt -- image format for animation to be exported as
 
+        pre -- time in seconds a blank screen will be shown before any
+        display groups
+
+        post --time in seconds a blank screen will be shown after any
+        display groups
+
         """
         if 'path' in keywords.keys():
             self.load(keywords['path'])
@@ -101,7 +111,7 @@ class CkgProj:
         # Type conversions
         if name == 'name':
             value = str(value)
-        elif name == 'fps':
+        elif name in ['fps', 'pre', 'post']:
             value = to_decimal(value)
         elif name == 'res':
             if len(value) != 2:
@@ -189,7 +199,9 @@ class CkgProj:
                 print "using default value '{0}' instead...".format(value)
             setattr(self, var, value)
         self.groups = []
-        group_els = project.getElementsByTagNameNS(XML_NAMESPACE, 'group')
+        group_els = [node for node in project.childNodes if
+                     node.localName == 'group' and
+                     node.namespaceURI == XML_NAMESPACE]
         for group_el in group_els:
             new_group = CkgDisplayGroup()
             new_group.load(group_el)
@@ -246,21 +258,29 @@ class CkgProj:
         # Create fixation cross
         fix_cross = graphics.Cross([r/2 for r in self.res], (20, 20))
 
-        # Initialize groups, set current group
-        anim_over = False
+        # Set-up groups and variables that control their display
         if group_queue == []:
             group_queue = list(reversed(self.groups))
+        groups_show = False # True when groups should be shown
+        groups_over = False # True when groups should no longer be shown
+        anim_over = False # True when all is over and animation should stop
+        pre_count = 0
+        post_count = 0
+
+        # Set initial group
         try:
             cur_group = group_queue.pop()
             cur_group.reset()
         except IndexError:
             cur_group = None
 
+        # Initialize ports
         if sigser:
             signals.ser_init()
         if sigpar:
             signals.par_init()
 
+        # Stretch to fit screen only if project res does not equal screen res
         scaling = False
         if fullscreen:
             window = pyglet.window.Window(fullscreen=True, visible=False)
@@ -269,6 +289,7 @@ class CkgProj:
         else:
             window = pyglet.window.Window(*self.res, visible=False)            
 
+        # Create framebuffer object for drawing unscaled scene
         if scaling:
             canvas = pyglet.image.Texture.create(*self.res)
             fbo = graphics.Framebuffer(canvas)
@@ -282,6 +303,7 @@ class CkgProj:
         window.clear()
         window.set_visible()
 
+        # Initialize logging variables
         if logtime and logdur:
             logstring = ''
             stamp = Timer()
@@ -293,31 +315,53 @@ class CkgProj:
             timer = Timer()
             timer.start()
 
+        # Main loop
         while not (window.has_exit or anim_over):
+            # Clear canvas
             if scaling:
                 fbo.start_render()
                 fbo.clear()
             else:
                 window.clear()
-            if cur_group != None:
-                cur_group.draw()
-                group_over = cur_group.update(self.fps,
-                                              sigser=sigser,
-                                              sigpar=sigpar)
-                # Check if current display group has finished displaying
-                if group_over:
-                    try:
-                        cur_group = group_queue.pop()
-                        cur_group.reset()
-                    except IndexError:
-                        anim_over = True
+
+            # Increment counters and check when flags should be set
+            if not groups_show and not groups_over:
+                if pre_count >= self.pre * self.fps:
+                    groups_show = True
+            if not groups_show and not groups_over:
+                pre_count += 1
+            if groups_over:
+                if post_count >= self.post * self.fps:
+                    anim_over = True
+                post_count += 1
+ 
+            # Draw groups and then update them
+            if groups_show:
+                if cur_group != None:
+                    cur_group.draw()
+                    group_over = cur_group.update(self.fps,
+                                                  sigser=sigser,
+                                                  sigpar=sigpar)
+                    if group_over:
+                        try:
+                            cur_group = group_queue.pop()
+                            cur_group.reset()
+                        except IndexError:
+                            # Set flags when there are no more groups
+                            cur_group = None
+                            groups_show = False
+                            groups_over = True
             fix_cross.draw()
+
+            # Blit canvas to screen if necessary
             if scaling:
                 fbo.end_render()
                 window.switch_to()
                 canvas.blit(0, 0)
             window.dispatch_events()
             window.flip()
+
+            # Append time information to log string
             if logtime and logdur:
                 logstring = '\n'.join([logstring, str(stamp.elapsed())])
                 logstring = '\t'.join([logstring, str(dur.restart())])
@@ -326,11 +370,13 @@ class CkgProj:
             elif logdur:
                 logstring = '\n'.join([logstring, str(timer.restart())])
 
+        # Clean up
         window.close()
         if scaling:
             fbo.delete()
             del canvas
 
+        # Write log string to file
         if logtime or logdur:
             filename = '{0}.log'.format(self.name)
             with open(filename, 'w') as logfile:
@@ -360,7 +406,7 @@ class CkgProj:
         # Create fixation cross
         fix_cross = graphics.Cross([r/2 for r in self.res], (20, 20))
 
-        # Set current group
+        # Set initial group
         try:
             cur_group = group_queue.pop()
             cur_group.reset()
@@ -511,7 +557,9 @@ class CkgDisplayGroup:
                 value = self.__class__.DEFAULTS[var]
                 print "using default value '{0}' instead...".format(value)
             setattr(self, var, value)
-        shape_els = element.getElementsByTagNameNS(XML_NAMESPACE, 'shape')
+        shape_els = [node for node in element.childNodes if
+                     node.localName == 'shape' and
+                     node.namespaceURI == XML_NAMESPACE]
         for shape_el in shape_els:
             # TODO: Make load code shape-agnostic
             new_shape = CheckerBoard()

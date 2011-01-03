@@ -217,6 +217,12 @@ class CkgCmd(cmd.Cmd):
                             choices=core.EXPORT_FMTS,
                             help='''image format for animation
                                     to be exported as''')
+    set_parser.add_argument('--pre', type=to_decimal, metavar='SECONDS',
+                              help='''time in seconds a blank screen will
+                                      be shown before any display groups''')
+    set_parser.add_argument('--post', type=to_decimal, metavar='SECONDS',
+                              help='''time in seconds a blank screen will
+                                      be shown after all display groups''')
 
     def help_set(self):
         self.__class__.set_parser.print_help()
@@ -656,6 +662,12 @@ class CkgCmd(cmd.Cmd):
                 ls_str(self.cur_proj.res).rjust(12),\
                 ls_str(self.cur_proj.bg).rjust(16),\
                 ls_str(self.cur_proj.export_fmt).rjust(7)
+            print \
+                'pre-display'.rjust(26),\
+                'post-display'.rjust(26)
+            print \
+                ls_str(self.cur_proj.pre).rjust(26),\
+                ls_str(self.cur_proj.post).rjust(26)
 
         if not args.settings and not args.groups:
             # Insert empty line if both groups and project 

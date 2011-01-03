@@ -1,52 +1,54 @@
 <?xml version="1.0" ?>
 <project xmlns="http://github.com/ZOMGxuan/checkergen">
-    <export_fmt>'png'</export_fmt>
-    <res>(800, 600)</res>
+    <pre>Decimal('2')</pre>
     <bg>(127, 127, 127)</bg>
+    <res>(800, 600)</res>
+    <export_fmt>'png'</export_fmt>
     <fps>Decimal('60')</fps>
+    <post>Decimal('2')</post>
     <group>
         <pre>Decimal('5')</pre>
         <disp>Decimal('5')</disp>
-        <post>Decimal('5')</post>
+        <post>Decimal('0')</post>
         <shape type="board">
-            <dims>(Decimal('5'), Decimal('5'))</dims>
-            <init_unit>(Decimal('40'), Decimal('40'))</init_unit>
             <end_unit>(Decimal('50'), Decimal('50'))</end_unit>
-            <position>(Decimal('420'), Decimal('320'))</position>
-            <anchor>'bottomleft'</anchor>
-            <cols>((0, 0, 0), (255, 255, 255))</cols>
-            <freq>Decimal('7')</freq>
+            <dims>(5, 5)</dims>
             <phase>Decimal('0')</phase>
+            <position>(Decimal('420'), Decimal('320'))</position>
+            <freq>Decimal('7')</freq>
+            <anchor>'bottomleft'</anchor>
+            <init_unit>(Decimal('40'), Decimal('40'))</init_unit>
+            <cols>((0, 0, 0), (255, 255, 255))</cols>
         </shape>
         <shape type="board">
-            <dims>(Decimal('5'), Decimal('5'))</dims>
-            <init_unit>(Decimal('40'), Decimal('40'))</init_unit>
             <end_unit>(Decimal('50'), Decimal('50'))</end_unit>
-            <position>(Decimal('380'), Decimal('320'))</position>
-            <anchor>'bottomright'</anchor>
-            <cols>((0, 0, 0), (255, 255, 255))</cols>
-            <freq>Decimal('11')</freq>
+            <dims>(5, 5)</dims>
             <phase>Decimal('90')</phase>
+            <position>(Decimal('380'), Decimal('320'))</position>
+            <freq>Decimal('11')</freq>
+            <anchor>'bottomright'</anchor>
+            <init_unit>(Decimal('40'), Decimal('40'))</init_unit>
+            <cols>((0, 0, 0), (255, 255, 255))</cols>
         </shape>
         <shape type="board">
-            <dims>(Decimal('5'), Decimal('5'))</dims>
-            <init_unit>(Decimal('40'), Decimal('40'))</init_unit>
             <end_unit>(Decimal('50'), Decimal('50'))</end_unit>
-            <position>(Decimal('420'), Decimal('280'))</position>
-            <anchor>'topleft'</anchor>
-            <cols>((0, 0, 0), (255, 255, 255))</cols>
-            <freq>Decimal('17')</freq>
+            <dims>(5, 5)</dims>
             <phase>Decimal('180')</phase>
+            <position>(Decimal('420'), Decimal('280'))</position>
+            <freq>Decimal('17')</freq>
+            <anchor>'topleft'</anchor>
+            <init_unit>(Decimal('40'), Decimal('40'))</init_unit>
+            <cols>((0, 0, 0), (255, 255, 255))</cols>
         </shape>
         <shape type="board">
-            <dims>(Decimal('5'), Decimal('5'))</dims>
-            <init_unit>(Decimal('40'), Decimal('40'))</init_unit>
             <end_unit>(Decimal('50'), Decimal('50'))</end_unit>
-            <position>(Decimal('380'), Decimal('280'))</position>
-            <anchor>'topright'</anchor>
-            <cols>((0, 0, 0), (255, 255, 255))</cols>
-            <freq>Decimal('31')</freq>
+            <dims>(5, 5)</dims>
             <phase>Decimal('270')</phase>
+            <position>(Decimal('380'), Decimal('280'))</position>
+            <freq>Decimal('31')</freq>
+            <anchor>'topright'</anchor>
+            <init_unit>(Decimal('40'), Decimal('40'))</init_unit>
+            <cols>((0, 0, 0), (255, 255, 255))</cols>
         </shape>
     </group>
 </project>
