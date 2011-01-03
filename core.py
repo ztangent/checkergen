@@ -23,7 +23,7 @@ from utils import *
 CKG_FMT = 'ckg'
 XML_NAMESPACE = 'http://github.com/ZOMGxuan/checkergen'
 EXPORT_FMTS = ['png']
-MAX_EXPORT_FRAMES = 10000
+MAX_EXPORT_FRAMES = 100000
 PRERENDER_TO_TEXTURE = False
 
 def xml_get(parent, namespace, name):
@@ -235,6 +235,9 @@ class CkgProj:
 
         """
 
+        # Create fixation cross
+        fix_cross = graphics.Cross([r/2 for r in self.res], (20, 20))
+
         # Initialize groups, set current group
         anim_over = False
         if group_queue == []:
@@ -244,8 +247,6 @@ class CkgProj:
             cur_group.reset()
         except IndexError:
             cur_group = None
-        # Create fixation cross
-        fix_cross = graphics.Cross([r/2 for r in self.res], (20, 20))
 
         scaling = False
         if fullscreen:
@@ -308,20 +309,35 @@ class CkgProj:
             with open(filename, 'w') as logfile:
                 logfile.write(logstring)
 
-    def export(self, export_dir, export_fmt=None, folder=True, force=False):
+    def export(self, export_dir, export_duration, group_queue=[],
+               export_fmt=None, folder=True, force=False):
         if not os.path.isdir(export_dir):
                 msg = 'export path is not a directory'
                 raise IOError(msg)
         if export_fmt == None:
             export_fmt = self.export_fmt
 
-        fpps = [round(self.fps / board.freq, 3) for board in 
-                self.boards if board.freq != 0]
-        frames = reduce(lcm, fpps)
-        count = 0
+        if group_queue == []:
+            group_queue = list(reversed(self.groups))
 
+        # Limit export duration to anim duration
+        anim_duration = sum([group.duration() for group in group_queue])
+        export_duration = min(export_duration, anim_duration)
+        frames = export_duration * self.fps
+
+        # Create fixation cross
+        fix_cross = graphics.Cross([r/2 for r in self.res], (20, 20))
+
+        # Set current group
+        try:
+            cur_group = group_queue.pop()
+            cur_group.reset()
+        except IndexError:
+            cur_group = None
+
+        # Warn user if a lot of frames will be exported
         if frames > MAX_EXPORT_FRAMES and not force:
-            msg = 'large number ({0}) of frames to be exported'.\
+            msg = 'very large number ({0}) of frames to be exported'.\
                 format(frames)
             raise FrameOverflowError(msg)
 
@@ -330,19 +346,26 @@ class CkgProj:
             if not os.path.isdir(export_dir):
                 os.mkdir(export_dir)
 
-        for board in self.boards:
-            board.reset()
-
         canvas = pyglet.image.Texture.create(*self.res)
         fbo = graphics.Framebuffer(canvas)
         fbo.start_render()
         graphics.set_clear_color(self.bg)
         fbo.clear()
 
+        count = 0
         while count < frames:
-            for board in self.boards:
-                board.lazydraw()
-                board.update(self.fps)
+            fbo.clear()
+            if cur_group != None:
+                cur_group.draw()
+                group_over = cur_group.update(self.fps)
+                # Check if current display group has finished displaying
+                if group_over:
+                    try:
+                        cur_group = group_queue.pop()
+                        cur_group.reset()
+                    except IndexError:
+                        cur_group = None
+            fix_cross.draw()
             savepath = \
                 os.path.join(export_dir, 
                              '{0}{2}.{1}'.
@@ -382,6 +405,10 @@ class CkgDisplayGroup:
         if name in self.__class__.DEFAULTS:
             value = to_decimal(value)
         self.__dict__[name] = value
+
+    def duration(self):
+        """Returns total duration of display group."""
+        return self.pre + self.disp + self.post
 
     def reset(self):
         """Resets internal count and all contained shapes."""

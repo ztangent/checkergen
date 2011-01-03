@@ -774,9 +774,6 @@ class CkgCmd(cmd.Cmd):
                               description='''Exports animation as an image
                                              sequence (in a folder) to the
                                              specified directory.''')
-    export_parser.add_argument('dir', nargs='?', default=os.getcwd(),
-                               help='''destination directory for export
-                                       (default: current working directory)''')
     export_parser.add_argument('--fmt', dest='export_fmt',
                                choices=core.EXPORT_FMTS,
                                help='image format for export')
@@ -784,6 +781,18 @@ class CkgCmd(cmd.Cmd):
                                dest='folder', action='store_false',
                                help='''force images not to exported in 
                                        a containing folder''')
+    export_parser.add_argument('duration', nargs='?',
+                               type=to_decimal, default='Infinity',
+                               help='''number of seconds of the animation
+                                       that should be exported (default:
+                                       as long as the entire animation)''')
+    export_parser.add_argument('dir', nargs='?', default=os.getcwd(),
+                               help='''destination directory for export
+                                       (default: current working directory)''')
+    export_parser.add_argument('idlist', nargs='*', metavar='id', type=int,
+                               help='''list of display groups to be displayed
+                                       in the specified order (default: order
+                                       by id, i.e. group 0 is first)''')
 
     def help_export(self):
         self.__class__.export_parser.print_help()
@@ -793,31 +802,50 @@ class CkgCmd(cmd.Cmd):
         if self.cur_proj == None:
             print 'please create or open a project first'
             return
+
         try:
             args = self.__class__.export_parser.parse_args(shlex.split(line))
         except CmdParserError:
             print "error:", str(sys.exc_value)
             self.__class__.export_parser.print_usage()
             return        
+
+        for i in set(args.idlist):
+            if i >= len(self.cur_proj.groups) or i < 0:
+                print 'error: group', i, 'does not exist'
+                return
+        group_queue = list(reversed([self.cur_proj.groups[i]
+                                     for i in args.idlist]))
+
         try:
-            self.cur_proj.export(args.dir, args.export_fmt, args.folder)
+            self.cur_proj.export(export_dir=args.dir,
+                                 export_duration=args.duration,
+                                 group_queue=group_queue,
+                                 export_fmt=args.export_fmt,
+                                 folder=args.folder)
         except IOError:
             print "error:", str(sys.exc_value)
+            return
         except core.FrameOverflowError:
             print "warning:", str(sys.exc_value)
             print "Are you sure you want to continue?"
             while True:
                 try:
                     if self.__class__.yn_parse(raw_input()):
-                        self.cur_proj.export(args.dir, args.export_fmt, 
-                                             args.folder, True)
+                        self.cur_proj.export(export_dir=args.dir,
+                                             export_duration=args.duration,
+                                             group_queue=group_queue,
+                                             export_fmt=args.export_fmt,
+                                             folder=args.folder,
+                                             force=True)
                         break
                     else:
                         return
                 except TypeError:
                     print str(sys.exc_value)
                 except EOFError:
-                    return True
+                    return
+
         print "Export done."
 
     def do_quit(self, line):
