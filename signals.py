@@ -2,9 +2,13 @@
 parallel ports."""
 
 SERPORT = None
+SERSTATE = 0
+SERFLIP = False
 PARPORT = None
-STIMULI_ON = 42 # 0b00101010
-STIMULI_OFF = 0 # 0b00000000
+PARSTATE = 0
+PARFLIP = False
+GROUP_ON = 42 # 0b00101010
+GROUP_OFF = 17 # 0b00000000
 
 available = {'serial': False, 'parallel': False}
 
@@ -36,13 +40,23 @@ if available['serial']:
         global SERPORT
         SERPORT = serial.Serial(0)
 
-    def ser_send_on():
-        global SERPORT
-        SERPORT.write(str(STIMULI_ON))
+    def ser_set_on():
+        global SERSTATE
+        if SERSTATE != GROUP_ON:
+            SERFLIP = True
+            SERSTATE = GROUP_ON
+        
+    def ser_set_off():
+        global SERSTATE
+        if SERSTATE != GROUP_OFF:
+            SERFLIP = True
+            SERSTATE = GROUP_OFF
 
-    def ser_send_off():
+    def ser_send():
         global SERPORT
-        SERPORT.write(str(STIMULI_OFF))
+        if SERFLIP:
+            SERPORT.write(str(SERSTATE))
+            SERFLIP = False
 
     def ser_quit():
         global SERPORT
@@ -53,10 +67,13 @@ else:
     def ser_init(msg=msg):
         raise NotImplementedError(msg)
 
-    def ser_send_on(msg=msg):
+    def ser_set_on(msg=msg):
         raise NotImplementedError(msg)
 
-    def ser_send_off(msg=msg):
+    def ser_set_off(msg=msg):
+        raise NotImplementedError(msg)
+
+    def ser_send(msg=msg):
         raise NotImplementedError(msg)
 
     def ser_quit(msg=msg):
@@ -67,13 +84,23 @@ if available['parallel']:
         global PARPORT
         PARPORT = parallel.Parallel()
 
-    def par_send_on():
-        global PARPORT
-        PARPORT.setData(STIMULI_ON)
+    def par_set_on():
+        global PARSTATE
+        if PARSTATE != GROUP_ON:
+            PARFLIP = True
+            PARSTATE = GROUP_ON
+        
+    def par_set_off():
+        global PARSTATE
+        if PARSTATE != GROUP_OFF:
+            PARFLIP = True
+            PARSTATE = GROUP_OFF
 
-    def par_send_off():
+    def par_send():
         global PARPORT
-        PARPORT.setData(STIMULI_OFF)
+        if PARFLIP:
+            PARPORT.setData(PARSTATE)
+            PARFLIP = False
 
     def par_quit():
         global PARPORT
@@ -83,10 +110,13 @@ else:
     def par_init(msg=msg):
         raise NotImplementedError(msg)
 
-    def par_send_on(msg=msg):
+    def par_set_on():
         raise NotImplementedError(msg)
 
-    def par_send_off(msg=msg):
+    def par_set_off():
+        raise NotImplementedError(msg)
+
+    def par_send():
         raise NotImplementedError(msg)
 
     def par_quit(msg=msg):

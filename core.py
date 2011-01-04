@@ -267,18 +267,21 @@ class CkgProj:
         pre_count = 0
         post_count = 0
 
+        # Initialize ports and signal state to off
+        if sigser:
+            signals.ser_init()
+            signals.ser_set_off()
+        if sigpar:
+            signals.par_init()
+            signals.par_set_off()
+
         # Set initial group
         try:
             cur_group = group_queue.pop()
-            cur_group.reset()
+            cur_group.reset(sigser=sigser,
+                            sigpar=sigpar)
         except IndexError:
             cur_group = None
-
-        # Initialize ports
-        if sigser:
-            signals.ser_init()
-        if sigpar:
-            signals.par_init()
 
         # Stretch to fit screen only if project res does not equal screen res
         scaling = False
@@ -345,7 +348,8 @@ class CkgProj:
                     if group_over:
                         try:
                             cur_group = group_queue.pop()
-                            cur_group.reset()
+                            cur_group.reset(sigser=sigser,
+                                            sigpar=sigpar)
                         except IndexError:
                             # Set flags when there are no more groups
                             cur_group = None
@@ -361,7 +365,7 @@ class CkgProj:
             window.dispatch_events()
             window.flip()
 
-            # Append time information to log string
+            # Append time information to log string            
             if logtime and logdur:
                 logstring = '\n'.join([logstring, str(stamp.elapsed())])
                 logstring = '\t'.join([logstring, str(dur.restart())])
@@ -369,23 +373,36 @@ class CkgProj:
                 logstring = '\n'.join([logstring, str(timer.elapsed())])
             elif logdur:
                 logstring = '\n'.join([logstring, str(timer.restart())])
+            # Log when signals are sent
+            if logtime or logdur:
+                if signals.SERFLIP:
+                    sigmsg = '{0} sent'.format(signals.SERSTATE)
+                    logstring = '\t'.join([logstring, sigmsg])
+                if signals.PARFLIP:
+                    sigmsg = '{0} sent'.format(signals.PARSTATE)
+                    logstring = '\t'.join([logstring, sigmsg])
+
+            # Send signals ASAP after flip
+            if sigser:
+                signals.ser_send()
+            if sigpar:
+                signals.par_send()
 
         # Clean up
         window.close()
         if scaling:
             fbo.delete()
             del canvas
+        if sigser:
+            signals.ser_quit()
+        if sigpar:
+            signals.par_quit()
 
         # Write log string to file
         if logtime or logdur:
             filename = '{0}.log'.format(self.name)
             with open(filename, 'w') as logfile:
                 logfile.write(logstring)
-
-        if sigser:
-            signals.ser_quit()
-        if sigpar:
-            signals.par_quit()
 
     def export(self, export_dir, export_duration, group_queue=[],
                export_fmt=None, folder=True, force=False):
@@ -395,13 +412,27 @@ class CkgProj:
         if export_fmt == None:
             export_fmt = self.export_fmt
 
+        # Set-up groups and variables that control their display
         if group_queue == []:
             group_queue = list(reversed(self.groups))
+        groups_show = False # True when groups should be shown
+        groups_over = False # True when groups should no longer be shown
+        anim_over = False # True when all is over and animation should stop
+        pre_count = 0
+        post_count = 0
+        count = 0
 
         # Limit export duration to anim duration
-        anim_duration = sum([group.duration() for group in group_queue])
+        anim_duration = self.pre + self.post + sum([group.duration() for 
+                                                    group in group_queue])
         export_duration = min(export_duration, anim_duration)
         frames = export_duration * self.fps
+
+        # Warn user if a lot of frames will be exported
+        if frames > MAX_EXPORT_FRAMES and not force:
+            msg = 'very large number ({0}) of frames to be exported'.\
+                format(frames)
+            raise FrameOverflowError(msg)
 
         # Create fixation cross
         fix_cross = graphics.Cross([r/2 for r in self.res], (20, 20))
@@ -413,43 +444,58 @@ class CkgProj:
         except IndexError:
             cur_group = None
 
-        # Warn user if a lot of frames will be exported
-        if frames > MAX_EXPORT_FRAMES and not force:
-            msg = 'very large number ({0}) of frames to be exported'.\
-                format(frames)
-            raise FrameOverflowError(msg)
-
+        # Create folder to store images if necessary
         if folder:
             export_dir = os.path.join(export_dir, self.name)
             if not os.path.isdir(export_dir):
                 os.mkdir(export_dir)
 
+        # Set up canvas and framebuffer object
         canvas = pyglet.image.Texture.create(*self.res)
         fbo = graphics.Framebuffer(canvas)
         fbo.start_render()
         graphics.set_clear_color(self.bg)
         fbo.clear()
 
-        count = 0
-        while count < frames:
+        # Main loop (anim_over should be redundant)
+        while count < frames or anim_over:
             fbo.clear()
-            if cur_group != None:
-                cur_group.draw()
-                group_over = cur_group.update(self.fps)
-                # Check if current display group has finished displaying
-                if group_over:
-                    try:
-                        cur_group = group_queue.pop()
-                        cur_group.reset()
-                    except IndexError:
-                        cur_group = None
+
+            # Increment counters and check when flags should be set
+            if not groups_show and not groups_over:
+                if pre_count >= self.pre * self.fps:
+                    groups_show = True
+            if not groups_show and not groups_over:
+                pre_count += 1
+            if groups_over:
+                if post_count >= self.post * self.fps:
+                    anim_over = True
+                post_count += 1
+
+            # Draw groups and then update them
+            if groups_show:
+                if cur_group != None:
+                    cur_group.draw()
+                    group_over = cur_group.update(self.fps)
+                    if group_over:
+                        try:
+                            cur_group = group_queue.pop()
+                            cur_group.reset()
+                        except IndexError:
+                            # Set flags when there are no more groups
+                            cur_group = None
+                            groups_show = False
+                            groups_over = True
             fix_cross.draw()
+
+            # Save current frame to file
             savepath = \
                 os.path.join(export_dir, 
                              '{0}{2}.{1}'.
                              format(self.name, export_fmt,
                                     repr(count).zfill(numdigits(frames-1))))
             canvas.save(savepath)
+
             count += 1
 
         fbo.delete()
@@ -488,16 +534,26 @@ class CkgDisplayGroup:
         """Returns total duration of display group."""
         return self.pre + self.disp + self.post
 
-    def reset(self):
+    def reset(self, sigser=False, sigpar=False):
         """Resets internal count and all contained shapes."""
-        self._count = 0
-        self._lower_bound = self.pre
-        self._upper_bound = self.pre + self.disp
-        self._end_point = self.pre + self.disp + self.post
-        if self._lower_bound == 0 and self._upper_bound > 0:
+        self._pre_count = 0
+        self._disp_count = 0
+        self._post_count = 0
+        self._disp_over = False
+        if self.pre == 0 and self.disp > 0:
             self._visible = True
+            if sigser:
+                signals.ser_set_on()
+            if sigpar:
+                signals.par_set_on()
         else:
             self._visible = False
+            if self.pre == 0 and self.disp == 0:
+                self._disp_over = True
+            if sigser:
+                signals.ser_set_off()
+            if sigpar:
+                signals.par_set_off()
         for shape in self.shapes:
             shape.reset()
 
@@ -511,32 +567,36 @@ class CkgDisplayGroup:
                     shape.draw()
 
     def update(self, fps, sigser=False, sigpar=False):
-        """Increments internal count, makes group visible when appropriate."""
-        self._count += 1
+        """Increments internal counts, makes group visible when appropriate."""
+            
         # Update contained shapes
         if self._visible:
             for shape in self.shapes:
                 shape.update(fps)
-        # Check whether count is in the interval where
-        # shapes should be visible
-        if ((self._lower_bound * fps) <= self._count and
-            (self._upper_bound * fps) > self._count):
-            self._visible = True
-            if sigser:
-                signals.ser_send_on()
-            if sigpar:
-                signals.par_send_on()
-        else:
-            self._visible = False
-            if sigser:
-                signals.ser_send_off()
-            if sigpar:
-                signals.par_send_off()
-        # Return true if count has reached the end
-        if self._count >= (self._end_point * fps):
-            return True
-        else:
-            return False
+
+        # Increment counters and set flags
+        if self._disp_over:
+            self._post_count += 1
+            if self._post_count >= self.post * fps:
+                # Return true if end is reached
+                return True
+        if self._visible and not self._disp_over:
+            self._disp_count += 1
+            if self._disp_count >= self.disp * fps:
+                self._visible = False
+                self._disp_over = True
+                if sigser:
+                    signals.ser_set_off()
+                if sigpar:
+                    signals.par_set_off()
+        if not self._visible and not self._disp_over:
+            self._pre_count += 1
+            if self._pre_count >= self.pre * fps:
+                self._visible = True
+                if sigser:
+                    signals.ser_set_on()
+                if sigpar:
+                    signals.par_set_on()
 
     def save(self, document, parent):
         """Saves group in specified XML document as child of parent."""
