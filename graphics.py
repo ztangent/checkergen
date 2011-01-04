@@ -170,9 +170,9 @@ class Rect:
     def gl_draw(self):
         """Draw using raw OpenGL functions."""
         glBegin(GL_TRIANGLES)
-        glColor3ubv(self.col)
+        glColor3ub(*self.col)
         for i in [0, 1, 2, 1, 2, 3]:
-            glVertex2fv(self.verts()[i])
+            glVertex2f(*self.verts()[i])
         glEnd()
 
     def add_to_batch(self, Batch):
@@ -238,9 +238,9 @@ class Cross:
         """Draw using raw OpenGL functions."""
         glLineWidth(self.thick)
         glBegin(GL_LINES)
-        glColor3ubv(self.col)
+        glColor3ub(*self.col)
         for vert in self.verts():
-            glVertex2fv(vert)
+            glVertex2f(*vert)
         glEnd()
         glLineWidth(1.0)
 
