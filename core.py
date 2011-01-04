@@ -340,7 +340,7 @@ class CkgProj:
  
             # Draw groups and then update them
             if groups_show:
-                if cur_group != None:
+               if cur_group != None:
                     cur_group.draw()
                     group_over = cur_group.update(self.fps,
                                                   sigser=sigser,
@@ -355,7 +355,7 @@ class CkgProj:
                             cur_group = None
                             groups_show = False
                             groups_over = True
-            fix_cross.draw()
+            fix_cross.gl_draw()
 
             # Blit canvas to screen if necessary
             if scaling:
