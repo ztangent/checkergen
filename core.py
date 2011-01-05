@@ -236,7 +236,7 @@ class CkgProj:
         return path
 
     def display(self, fullscreen=False, logtime=False, logdur=False,
-                sigser=False, sigpar=False, testrect=False, group_queue=[]):
+                sigser=False, sigpar=False, phototest=False, group_queue=[]):
         """Displays the project animation on the screen.
 
         fullscreen -- animation is displayed fullscreen if true, stretched
