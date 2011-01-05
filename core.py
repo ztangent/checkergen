@@ -536,11 +536,11 @@ class CkgDisplayGroup:
 
     def reset(self, sigser=False, sigpar=False):
         """Resets internal count and all contained shapes."""
-        self._pre_count = 0
-        self._disp_count = 0
-        self._post_count = 0
-        self._disp_over = False
-        if self.pre == 0 and self.disp > 0:
+        self._count = 0
+        self._disp_start = self.pre
+        self._disp_stop = self.pre + self.disp
+        self._end_point = self.pre + self.disp + self.post
+        if self._disp_start == 0 and self._disp_stop > 0:
             self._visible = True
             if sigser:
                 signals.ser_set_on()
@@ -548,8 +548,6 @@ class CkgDisplayGroup:
                 signals.par_set_on()
         else:
             self._visible = False
-            if self.pre == 0 and self.disp == 0:
-                self._disp_over = True
             if sigser:
                 signals.ser_set_off()
             if sigpar:
@@ -567,36 +565,33 @@ class CkgDisplayGroup:
                     shape.draw()
 
     def update(self, fps, sigser=False, sigpar=False):
-        """Increments internal counts, makes group visible when appropriate."""
+        """Increments internal count, makes group visible when appropriate.
+        Returns true when group has finished completely."""
             
-        # Update contained shapes
+        # Update contained shapes, set triggers to be sent
         if self._visible:
             for shape in self.shapes:
                 shape.update(fps)
+            if sigser:
+                signals.ser_set_on()
+            if sigpar:
+                signals.par_set_on()
+        else:
+            if sigser:
+                signals.ser_set_off()
+            if sigpar:
+                signals.par_set_off()
 
-        # Increment counters and set flags
-        if self._disp_over:
-            self._post_count += 1
-            if self._post_count >= self.post * fps:
-                # Return true if end is reached
-                return True
-        if self._visible and not self._disp_over:
-            self._disp_count += 1
-            if self._disp_count >= self.disp * fps:
-                self._visible = False
-                self._disp_over = True
-                if sigser:
-                    signals.ser_set_off()
-                if sigpar:
-                    signals.par_set_off()
-        if not self._visible and not self._disp_over:
-            self._pre_count += 1
-            if self._pre_count >= self.pre * fps:
-                self._visible = True
-                if sigser:
-                    signals.ser_set_on()
-                if sigpar:
-                    signals.par_set_on()
+        # Increment count and set flags
+        self._count += 1
+        if (self._disp_start * fps) <= self._count < (self._disp_stop * fps):
+            self._visible = True
+        else:
+            self._visible = False
+        if self._count >= (self._end_point * fps):
+            return True
+        else:
+            return False
 
     def save(self, document, parent):
         """Saves group in specified XML document as child of parent."""
