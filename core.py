@@ -236,7 +236,7 @@ class CkgProj:
         return path
 
     def display(self, fullscreen=False, logtime=False, logdur=False,
-                sigser=False, sigpar=False, group_queue=[]):
+                sigser=False, sigpar=False, testrect=False, group_queue=[]):
         """Displays the project animation on the screen.
 
         fullscreen -- animation is displayed fullscreen if true, stretched
@@ -250,6 +250,9 @@ class CkgProj:
 
         sigpar -- send signals through parallel port when each group is shown
 
+        phototest -- draw white rectangle in topleft corner when each group is
+        shown for photodiode to detect
+
         group_queue -- queue of groups to be displayed (in reverse order),
         defaults to order of groups in project (i.e. groups[0] first, etc.)
 
@@ -257,11 +260,17 @@ class CkgProj:
 
         # Create fixation cross
         fix_cross = graphics.Cross([r/2 for r in self.res], (20, 20))
+        # Create test rectangle
+        if phototest:
+            test_rect = graphics.Rect((0, self.res[1]), 
+                                      [r/8 for r in self.res],
+                                      anchor='topleft')
 
         # Set-up groups and variables that control their display
         if group_queue == []:
             group_queue = list(reversed(self.groups))
         cur_group = None
+        group_vis_flip = 0
         groups_duration = sum([group.duration() for group in group_queue])
         groups_start = self.pre * self.fps
         groups_stop = (self.pre + groups_duration) * self.fps
@@ -330,18 +339,31 @@ class CkgProj:
                 if cur_group == None:
                         try:
                             cur_group = group_queue.pop()
-                            cur_group.reset(sigser=sigser,
-                                            sigpar=sigpar)
+                            cur_group.reset()
                         except IndexError:
                             pass
                 # Draw and then update group
                 if cur_group != None:
-                    cur_group.draw()
-                    group_over = cur_group.update(self.fps,
-                                                  sigser=sigser,
-                                                  sigpar=sigpar)
+                    group_vis_flip = cur_group.draw()
+                    group_over = cur_group.update(self.fps)
                     if group_over:
                         cur_group = None
+
+            # Send signals upon group visibility change
+            if group_vis_flip == 1:
+                if sigser:
+                    signals.ser_set_on()
+                if sigpar:
+                    signals.par_set_on()
+                # Draw test rectangle
+                if phototest:
+                    test_rect.gl_draw()
+            elif group_vis_flip == -1:
+                if sigser:
+                    signals.ser_set_off()
+                if sigpar:
+                    signals.par_set_off()
+            # Draw fixation cross
             fix_cross.gl_draw()
 
             # Increment count and set whether groups should be shown
@@ -456,16 +478,13 @@ class CkgProj:
                 if cur_group == None:
                         try:
                             cur_group = group_queue.pop()
-                            cur_group.reset(sigser=sigser,
-                                            sigpar=sigpar)
+                            cur_group.reset()
                         except IndexError:
                             pass
                 # Draw and then update group
                 if cur_group != None:
                     cur_group.draw()
-                    group_over = cur_group.update(self.fps,
-                                                  sigser=sigser,
-                                                  sigpar=sigpar)
+                    group_over = cur_group.update(self.fps)
                     if group_over:
                         cur_group = None
             fix_cross.gl_draw()
@@ -523,37 +542,41 @@ class CkgDisplayGroup:
         """Returns total duration of display group."""
         return self.pre + self.disp + self.post
 
-    def reset(self, sigser=False, sigpar=False):
+    def reset(self):
         """Resets internal count and all contained shapes."""
         self._count = 0
         self._disp_start = self.pre
         self._disp_stop = self.pre + self.disp
         self._end_point = self.pre + self.disp + self.post
+        self._old_visible = False
         if self._disp_start == 0 and self._disp_stop > 0:
             self._visible = True
-            if sigser:
-                signals.ser_set_on()
-            if sigpar:
-                signals.par_set_on()
         else:
             self._visible = False
-            if sigser:
-                signals.ser_set_off()
-            if sigpar:
-                signals.par_set_off()
         for shape in self.shapes:
             shape.reset()
 
     def draw(self, lazy=False):
-        """Draws all contained shapes during the appropriate interval."""
+        """Draws all contained shapes during the appropriate interval.
+        Return 1 upon turning visible from invisible.
+        Return -1 upon turning invisible from visible."""
         if self._visible:
             for shape in self.shapes:
                 if lazy:
                     shape.lazydraw()
                 else:
                     shape.draw()
+            if not self._old_visible:
+                return 1
+            else:
+                return 0
+        else:
+            if self._old_visible:
+                return -1
+            else:
+                return 0
 
-    def update(self, fps, sigser=False, sigpar=False):
+    def update(self, fps):
         """Increments internal count, makes group visible when appropriate.
         Returns true when group has finished completely."""
             
@@ -561,18 +584,10 @@ class CkgDisplayGroup:
         if self._visible:
             for shape in self.shapes:
                 shape.update(fps)
-            if sigser:
-                signals.ser_set_on()
-            if sigpar:
-                signals.par_set_on()
-        else:
-            if sigser:
-                signals.ser_set_off()
-            if sigpar:
-                signals.par_set_off()
 
         # Increment count and set flags
         self._count += 1
+        self._old_visible = self._visible
         if (self._disp_start * fps) <= self._count < (self._disp_stop * fps):
             self._visible = True
         else:

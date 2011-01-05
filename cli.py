@@ -734,6 +734,10 @@ class CkgCmd(cmd.Cmd):
                                         less dropped frames (choices:
                                         0-3, low, normal, high,
                                         realtime)''')
+    display_parser.add_argument('-pt', '--phototest', action='store_true',
+                                help='''draw white test rectangle in topleft
+                                        corner of screen when groups become
+                                        visible for a photodiode to detect''')
     display_parser.add_argument('-lt', '--logtime', action='store_true',
                                 help='output frame timestamps to a log file')
     display_parser.add_argument('-ld', '--logdur', action='store_true',
@@ -783,6 +787,7 @@ class CkgCmd(cmd.Cmd):
                                   logdur=args.logdur,
                                   sigser=args.sigser,
                                   sigpar=args.sigpar,
+                                  phototest=args.phototest,
                                   group_queue=group_queue)
         except (IOError, NotImplementedError):
             print "error:", str(sys.exc_value)
