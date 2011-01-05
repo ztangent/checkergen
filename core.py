@@ -261,11 +261,16 @@ class CkgProj:
         # Set-up groups and variables that control their display
         if group_queue == []:
             group_queue = list(reversed(self.groups))
-        groups_show = False # True when groups should be shown
-        groups_over = False # True when groups should no longer be shown
-        anim_over = False # True when all is over and animation should stop
-        pre_count = 0
-        post_count = 0
+        cur_group = None
+        groups_duration = sum([group.duration() for group in group_queue])
+        groups_start = self.pre * self.fps
+        groups_stop = (self.pre + groups_duration) * self.fps
+        anim_stop = (self.pre + groups_duration + self.post) * self.fps
+        if groups_start == 0 and groups_stop > 0:
+            groups_visible = True
+        else:
+            groups_visible = False
+        count = 0
 
         # Initialize ports and signal state to off
         if sigser:
@@ -274,14 +279,6 @@ class CkgProj:
         if sigpar:
             signals.par_init()
             signals.par_set_off()
-
-        # Set initial group
-        try:
-            cur_group = group_queue.pop()
-            cur_group.reset(sigser=sigser,
-                            sigpar=sigpar)
-        except IndexError:
-            cur_group = None
 
         # Stretch to fit screen only if project res does not equal screen res
         scaling = False
@@ -301,6 +298,7 @@ class CkgProj:
             fbo.clear()
             fbo.end_render()
 
+        # Clear window and make visible
         window.switch_to()
         graphics.set_clear_color(self.bg)
         window.clear()
@@ -319,43 +317,39 @@ class CkgProj:
             timer.start()
 
         # Main loop
-        while not (window.has_exit or anim_over):
+        while not window.has_exit and count < anim_stop:
             # Clear canvas
             if scaling:
                 fbo.start_render()
                 fbo.clear()
             else:
-                window.clear()
-
-            # Increment counters and check when flags should be set
-            if not groups_show and not groups_over:
-                if pre_count >= self.pre * self.fps:
-                    groups_show = True
-            if not groups_show and not groups_over:
-                pre_count += 1
-            if groups_over:
-                if post_count >= self.post * self.fps:
-                    anim_over = True
-                post_count += 1
+                window.clear()            
  
-            # Draw groups and then update them
-            if groups_show:
-               if cur_group != None:
-                    cur_group.draw()
-                    group_over = cur_group.update(self.fps,
-                                                  sigser=sigser,
-                                                  sigpar=sigpar)
-                    if group_over:
+            if groups_visible:
+                # Get next group from queue
+                if cur_group == None:
                         try:
                             cur_group = group_queue.pop()
                             cur_group.reset(sigser=sigser,
                                             sigpar=sigpar)
                         except IndexError:
-                            # Set flags when there are no more groups
-                            cur_group = None
-                            groups_show = False
-                            groups_over = True
+                            pass
+                # Draw and then update group
+                if cur_group != None:
+                    cur_group.draw()
+                    group_over = cur_group.update(self.fps,
+                                                  sigser=sigser,
+                                                  sigpar=sigpar)
+                    if group_over:
+                        cur_group = None
             fix_cross.gl_draw()
+
+            # Increment count and set whether groups should be shown
+            count += 1
+            if groups_start <= count < groups_stop:
+                groups_visible = True
+            else:
+                groups_visible = False
 
             # Blit canvas to screen if necessary
             if scaling:
@@ -373,6 +367,7 @@ class CkgProj:
                 logstring = '\n'.join([logstring, str(timer.elapsed())])
             elif logdur:
                 logstring = '\n'.join([logstring, str(timer.restart())])
+
             # Log when signals are sent
             if logtime or logdur:
                 if signals.SERFLIP:
@@ -415,18 +410,20 @@ class CkgProj:
         # Set-up groups and variables that control their display
         if group_queue == []:
             group_queue = list(reversed(self.groups))
-        groups_show = False # True when groups should be shown
-        groups_over = False # True when groups should no longer be shown
-        anim_over = False # True when all is over and animation should stop
-        pre_count = 0
-        post_count = 0
+        cur_group = None
+        groups_duration = sum([group.duration() for group in group_queue])
+        groups_start = self.pre * self.fps
+        groups_stop = (self.pre + groups_duration) * self.fps
+        anim_stop = (self.pre + groups_duration + self.post) * self.fps
+        if groups_start == 0 and groups_stop > 0:
+            groups_visible = True
+        else:
+            groups_visible = False
         count = 0
 
         # Limit export duration to anim duration
-        anim_duration = self.pre + self.post + sum([group.duration() for 
-                                                    group in group_queue])
-        export_duration = min(export_duration, anim_duration)
-        frames = export_duration * self.fps
+        export_stop = export_duration * self.fps
+        export_stop = min(export_stop, anim_stop)
 
         # Warn user if a lot of frames will be exported
         if frames > MAX_EXPORT_FRAMES and not force:
@@ -434,21 +431,14 @@ class CkgProj:
                 format(frames)
             raise FrameOverflowError(msg)
 
-        # Create fixation cross
-        fix_cross = graphics.Cross([r/2 for r in self.res], (20, 20))
-
-        # Set initial group
-        try:
-            cur_group = group_queue.pop()
-            cur_group.reset()
-        except IndexError:
-            cur_group = None
-
         # Create folder to store images if necessary
         if folder:
             export_dir = os.path.join(export_dir, self.name)
             if not os.path.isdir(export_dir):
                 os.mkdir(export_dir)
+
+        # Create fixation cross
+        fix_cross = graphics.Cross([r/2 for r in self.res], (20, 20))
 
         # Set up canvas and framebuffer object
         canvas = pyglet.image.Texture.create(*self.res)
@@ -457,36 +447,35 @@ class CkgProj:
         graphics.set_clear_color(self.bg)
         fbo.clear()
 
-        # Main loop (anim_over should be redundant)
-        while count < frames or anim_over:
+        # Main loop
+        while count < export_stop:
             fbo.clear()
 
-            # Increment counters and check when flags should be set
-            if not groups_show and not groups_over:
-                if pre_count >= self.pre * self.fps:
-                    groups_show = True
-            if not groups_show and not groups_over:
-                pre_count += 1
-            if groups_over:
-                if post_count >= self.post * self.fps:
-                    anim_over = True
-                post_count += 1
-
-            # Draw groups and then update them
-            if groups_show:
-                if cur_group != None:
-                    cur_group.draw()
-                    group_over = cur_group.update(self.fps)
-                    if group_over:
+            if groups_visible:
+                # Get next group from queue
+                if cur_group == None:
                         try:
                             cur_group = group_queue.pop()
-                            cur_group.reset()
+                            cur_group.reset(sigser=sigser,
+                                            sigpar=sigpar)
                         except IndexError:
-                            # Set flags when there are no more groups
-                            cur_group = None
-                            groups_show = False
-                            groups_over = True
-            fix_cross.draw()
+                            pass
+                # Draw and then update group
+                if cur_group != None:
+                    cur_group.draw()
+                    group_over = cur_group.update(self.fps,
+                                                  sigser=sigser,
+                                                  sigpar=sigpar)
+                    if group_over:
+                        cur_group = None
+            fix_cross.gl_draw()
+
+            # Increment count and set whether groups should be shown
+            count += 1
+            if groups_start <= count < groups_stop:
+                groups_visible = True
+            else:
+                groups_visible = False
 
             # Save current frame to file
             savepath = \
