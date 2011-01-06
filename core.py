@@ -281,13 +281,8 @@ class CkgProj:
             groups_visible = False
         count = 0
 
-        # Initialize ports and signal state to off
-        if sigser:
-            signals.ser_init()
-            signals.ser_set_off()
-        if sigpar:
-            signals.par_init()
-            signals.par_set_off()
+        # Initialize ports
+        signals.init(sigser, sigpar)
 
         # Stretch to fit screen only if project res does not equal screen res
         scaling = False
@@ -335,34 +330,42 @@ class CkgProj:
                 window.clear()            
  
             if groups_visible:
+                if cur_group != None:
+                    # Check whether group changes in visibility
+                    if cur_group.visible != cur_group.old_visible:
+                        if cur_group.visible:
+                            group_vis_flip = 1
+                        elif cur_group.old_visible:
+                            group_vis_flip = -1
+                    else:
+                        group_vis_flip = 0
+                    # Check if current group is over
+                    if cur_group.over:
+                        cur_group = None
                 # Get next group from queue
                 if cur_group == None:
-                        try:
-                            cur_group = group_queue.pop()
-                            cur_group.reset()
-                        except IndexError:
-                            pass
+                    try:
+                        cur_group = group_queue.pop()
+                        cur_group.reset()
+                        if cur_group.visible:
+                            group_vis_flip = 1
+                    except IndexError:
+                        pass
                 # Draw and then update group
                 if cur_group != None:
-                    group_vis_flip = cur_group.draw()
-                    group_over = cur_group.update(self.fps)
-                    if group_over:
-                        cur_group = None
+                    cur_group.draw()
+                    cur_group.update(self.fps)
 
             # Send signals upon group visibility change
             if group_vis_flip == 1:
-                if sigser:
-                    signals.ser_set_on()
-                if sigpar:
-                    signals.par_set_on()
+                signals.set_start()
                 # Draw test rectangle
                 if phototest:
                     test_rect.gl_draw()
             elif group_vis_flip == -1:
-                if sigser:
-                    signals.ser_set_off()
-                if sigpar:
-                    signals.par_set_off()
+                signals.set_stop()
+            else:
+                signals.set_null()
             # Draw fixation cross
             fix_cross.gl_draw()
 
@@ -381,6 +384,9 @@ class CkgProj:
             window.dispatch_events()
             window.flip()
 
+            # Send signals ASAP after flip
+            signals.send(sigser, sigpar)
+
             # Append time information to log string            
             if logtime and logdur:
                 logstring = '\n'.join([logstring, str(stamp.elapsed())])
@@ -392,28 +398,16 @@ class CkgProj:
 
             # Log when signals are sent
             if logtime or logdur:
-                if signals.SERFLIP:
-                    sigmsg = '{0} sent'.format(signals.SERSTATE)
+                if group_vis_flip != 0 and (sigser or sigpar):
+                    sigmsg = '{0} sent'.format(signals.STATE)
                     logstring = '\t'.join([logstring, sigmsg])
-                if signals.PARFLIP:
-                    sigmsg = '{0} sent'.format(signals.PARSTATE)
-                    logstring = '\t'.join([logstring, sigmsg])
-
-            # Send signals ASAP after flip
-            if sigser:
-                signals.ser_send()
-            if sigpar:
-                signals.par_send()
 
         # Clean up
         window.close()
         if scaling:
             fbo.delete()
             del canvas
-        if sigser:
-            signals.ser_quit()
-        if sigpar:
-            signals.par_quit()
+        signals.quit(sigser, sigpar)
 
         # Write log string to file
         if logtime or logdur:
@@ -474,27 +468,23 @@ class CkgProj:
             fbo.clear()
 
             if groups_visible:
+                # Check if current group is over
+                if cur_group != None:
+                    if cur_group.over:
+                        cur_group = None
                 # Get next group from queue
                 if cur_group == None:
-                        try:
-                            cur_group = group_queue.pop()
-                            cur_group.reset()
-                        except IndexError:
-                            pass
+                    try:
+                        cur_group = group_queue.pop()
+                        cur_group.reset()
+                    except IndexError:
+                        pass
                 # Draw and then update group
                 if cur_group != None:
                     cur_group.draw()
-                    group_over = cur_group.update(self.fps)
-                    if group_over:
-                        cur_group = None
+                    cur_group.update(self.fps)
+            # Draw fixation cross
             fix_cross.gl_draw()
-
-            # Increment count and set whether groups should be shown
-            count += 1
-            if groups_start <= count < groups_stop:
-                groups_visible = True
-            else:
-                groups_visible = False
 
             # Save current frame to file
             savepath = \
@@ -504,7 +494,12 @@ class CkgProj:
                                     repr(count).zfill(numdigits(frames-1))))
             canvas.save(savepath)
 
+            # Increment count and set whether groups should be shown
             count += 1
+            if groups_start <= count < groups_stop:
+                groups_visible = True
+            else:
+                groups_visible = False
 
         fbo.delete()
 
@@ -548,54 +543,45 @@ class CkgDisplayGroup:
         self._disp_start = self.pre
         self._disp_stop = self.pre + self.disp
         self._end_point = self.pre + self.disp + self.post
-        self._old_visible = False
+        self.over = False
+        self.old_visible = False
         if self._disp_start == 0 and self._disp_stop > 0:
-            self._visible = True
+            self.visible = True
         else:
-            self._visible = False
+            self.visible = False
+            if self._end_point == 0:
+                self.over = True
         for shape in self.shapes:
             shape.reset()
 
     def draw(self, lazy=False):
-        """Draws all contained shapes during the appropriate interval.
-        Return 1 upon turning visible from invisible.
-        Return -1 upon turning invisible from visible."""
-        if self._visible:
+        """Draws all contained shapes during the appropriate interval."""
+        if self.visible:
             for shape in self.shapes:
                 if lazy:
                     shape.lazydraw()
                 else:
                     shape.draw()
-            if not self._old_visible:
-                return 1
-            else:
-                return 0
-        else:
-            if self._old_visible:
-                return -1
-            else:
-                return 0
 
     def update(self, fps):
-        """Increments internal count, makes group visible when appropriate.
-        Returns true when group has finished completely."""
+        """Increments internal count, makes group visible when appropriate."""
             
         # Update contained shapes, set triggers to be sent
-        if self._visible:
+        if self.visible:
             for shape in self.shapes:
                 shape.update(fps)
 
-        # Increment count and set flags
+        # Increment count and set flags for the next frame
         self._count += 1
-        self._old_visible = self._visible
+        self.old_visible = self.visible
         if (self._disp_start * fps) <= self._count < (self._disp_stop * fps):
-            self._visible = True
+            self.visible = True
         else:
-            self._visible = False
+            self.visible = False
         if self._count >= (self._end_point * fps):
-            return True
+            self.over = True
         else:
-            return False
+            self.over = False
 
     def save(self, document, parent):
         """Saves group in specified XML document as child of parent."""

@@ -211,7 +211,7 @@ class CkgCmd(cmd.Cmd):
                             metavar='WIDTH,HEIGHT')
     set_parser.add_argument('--bg', metavar='COLOR', type=to_color,
                             help='''background color of the canvas
-                                    (color format: R,G,B or name, 
+                                    (color format: R,G,B,
                                     component range from 0-255)''')
     set_parser.add_argument('--fmt', dest='export_fmt', 
                             choices=core.EXPORT_FMTS,
@@ -440,7 +440,7 @@ class CkgCmd(cmd.Cmd):
                            metavar='anchor')
     mk_parser.add_argument('cols', action=store_tuple(2, ',', to_color, [';']),
                            help='''color1,color2 of the checkerboard
-                                   (color format: R;G;B or name, 
+                                   (color format: R;G;B, 
                                    component range from 0-255)''')
     mk_parser.add_argument('freq', type=to_decimal,
                            help='frequency of color reversal in Hz')
@@ -498,7 +498,7 @@ class CkgCmd(cmd.Cmd):
     ed_parser.add_argument('--cols', metavar='COLOR1,COLOR2',
                            action=store_tuple(2, ',', to_color, [';']),
                            help='''checkerboard colors (color format:
-                                   R;G;B or name, component range 
+                                   R;G;B, component range 
                                    from 0-255)''')
     ed_parser.add_argument('--freq', type=to_decimal,
                            help='frequency of color reversal in Hz')

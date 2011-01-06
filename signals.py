@@ -2,18 +2,16 @@
 parallel ports."""
 
 SERPORT = None
-SERSTATE = 0
-SERFLIP = False
 PARPORT = None
-PARSTATE = 0
-PARFLIP = False
-GROUP_ON = 42 # 0b00101010
-GROUP_OFF = 17 # 0b00000000
+STATE = None
+GROUP_START = 42 # 0b00101010
+GROUP_STOP = 17 # 0b00010001
 
 available = {'serial': False, 'parallel': False}
 
 try:
     import serial
+
     try:
         test_port = serial.Serial(0)
         test_port.close()
@@ -38,51 +36,21 @@ except ImportError:
 if available['serial']:
     def ser_init():
         global SERPORT
-        global SERSTATE
-        global SERFLIP
-        SERFLIP = False
-        SERSTATE = 0
         SERPORT = serial.Serial(0)
-
-    def ser_set_on():
-        global SERSTATE
-        global SERFLIP
-        if SERSTATE != GROUP_ON:
-            SERFLIP = True
-            SERSTATE = GROUP_ON
-        
-    def ser_set_off():
-        global SERSTATE
-        global SERFLIP
-        if SERSTATE != GROUP_OFF:
-            SERFLIP = True
-            SERSTATE = GROUP_OFF
 
     def ser_send():
         global SERPORT
-        global SERSTATE
-        global SERFLIP
-        if SERFLIP:
-            SERPORT.write(str(SERSTATE))
-            SERFLIP = False
+        global STATE
+        if STATE != None:
+            SERPORT.write(str(STATE))
 
     def ser_quit():
         global SERPORT
-        global SERSTATE
-        global SERFLIP
-        SERFLIP = False
-        SERSTATE = 0
         SERPORT.close()
         SERPORT = None
 else:
     msg = 'serial port functionality not available'
     def ser_init(msg=msg):
-        raise NotImplementedError(msg)
-
-    def ser_set_on(msg=msg):
-        raise NotImplementedError(msg)
-
-    def ser_set_off(msg=msg):
         raise NotImplementedError(msg)
 
     def ser_send(msg=msg):
@@ -94,52 +62,24 @@ else:
 if available['parallel']:
     def par_init():
         global PARPORT
-        global PARSTATE
-        global PARFLIP
-        PARSTATE = 0
-        PARFLIP = False
         PARPORT = parallel.Parallel()
-        PARPORT.setData(PARSTATE)
-
-    def par_set_on():
-        global PARSTATE
-        global PARFLIP
-        if PARSTATE != GROUP_ON:
-            PARFLIP = True
-            PARSTATE = GROUP_ON
-        
-    def par_set_off():
-        global PARSTATE
-        global PARFLIP
-        if PARSTATE != GROUP_OFF:
-            PARFLIP = True
-            PARSTATE = GROUP_OFF
+        PARPORT.setData(0)
 
     def par_send():
         global PARPORT
-        global PARSTATE
-        global PARFLIP
-        if PARFLIP:
+        global STATE
+        if STATE != None:
             PARPORT.setData(PARSTATE)
-            PARFLIP = False
+        else:
+            PARPORT.setData(0)
 
     def par_quit():
         global PARPORT
-        global PARSTATE
-        global PARFLIP
-        PARSTATE = 0
-        PARFLIP = False
-        PARPORT.setData(PARSTATE)
+        PARPORT.setData(0)
         PARPORT = None
 else:
     msg = 'parallel port functionality not available'
     def par_init(msg=msg):
-        raise NotImplementedError(msg)
-
-    def par_set_on():
-        raise NotImplementedError(msg)
-
-    def par_set_off():
         raise NotImplementedError(msg)
 
     def par_send():
@@ -147,3 +87,38 @@ else:
 
     def par_quit(msg=msg):
         raise NotImplementedError(msg)
+
+def init(sigser, sigpar):
+    global STATE
+    STATE = None
+    if sigser:
+        ser_init()
+    if sigpar:
+        par_init()
+
+def set_start():
+    global STATE
+    STATE = GROUP_START
+
+def set_stop():
+    global STATE
+    STATE = GROUP_STOP
+
+def set_null():
+    global STATE
+    STATE = None
+
+def send(sigser, sigpar):
+    if sigser:
+        ser_send()
+    if sigpar:
+        par_send()
+
+def quit(sigser, sigpar):
+    global STATE
+    STATE = None
+    if sigser:
+        ser_quit()
+    if sigpar:
+        par_quit()
+    
