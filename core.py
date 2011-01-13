@@ -386,9 +386,6 @@ class CkgProj:
             # Make sure everything has been drawn
             pyglet.gl.glFinish()
 
-            # Send signals ASAP after flip
-            signals.send(sigser, sigpar)
-
             # Append time information to log string            
             if logtime and logdur:
                 logstring = '\n'.join([logstring, str(stamp.elapsed())])
@@ -397,6 +394,9 @@ class CkgProj:
                 logstring = '\n'.join([logstring, str(timer.elapsed())])
             elif logdur:
                 logstring = '\n'.join([logstring, str(timer.restart())])
+
+            # Send signals ASAP after flip
+            signals.send(sigser, sigpar)
 
             # Log when signals are sent
             if logtime or logdur:

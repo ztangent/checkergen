@@ -4,6 +4,7 @@ parallel ports."""
 SERPORT = None
 PARPORT = None
 STATE = None
+OLD_STATE = None
 GROUP_START = 42 # 0b00101010
 GROUP_STOP = 17 # 0b00010001
 
@@ -90,7 +91,9 @@ else:
 
 def init(sigser, sigpar):
     global STATE
+    global OLD_STATE
     STATE = None
+    OLD_STATE = None
     if sigser:
         ser_init()
     if sigpar:
@@ -98,21 +101,28 @@ def init(sigser, sigpar):
 
 def set_start():
     global STATE
+    global OLD_STATE
+    OLD_STATE = STATE
     STATE = GROUP_START
 
 def set_stop():
     global STATE
+    global OLD_STATE
+    OLD_STATE = STATE
     STATE = GROUP_STOP
 
 def set_null():
     global STATE
+    global OLD_STATE
+    OLD_STATE = STATE
     STATE = None
 
 def send(sigser, sigpar):
     if sigser:
         ser_send()
-    if sigpar:
-        par_send()
+    if STATE != OLD_STATE:
+        if sigpar:
+            par_send()
 
 def quit(sigser, sigpar):
     global STATE
