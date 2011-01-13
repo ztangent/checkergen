@@ -327,7 +327,9 @@ class CkgProj:
                 fbo.start_render()
                 fbo.clear()
             else:
-                window.clear()            
+                window.clear()
+            # Assume no change to group visibility
+            group_vis_flip = 0
  
             if groups_visible:
                 if cur_group != None:
@@ -337,8 +339,6 @@ class CkgProj:
                             group_vis_flip = 1
                         elif cur_group.old_visible:
                             group_vis_flip = -1
-                    else:
-                        group_vis_flip = 0
                     # Check if current group is over
                     if cur_group.over:
                         cur_group = None
@@ -383,6 +383,8 @@ class CkgProj:
                 canvas.blit(0, 0)
             window.dispatch_events()
             window.flip()
+            # Make sure everything has been drawn
+            pyglet.gl.glFinish()
 
             # Send signals ASAP after flip
             signals.send(sigser, sigpar)
