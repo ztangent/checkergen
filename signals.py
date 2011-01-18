@@ -70,7 +70,7 @@ if available['parallel']:
         global PARPORT
         global STATE
         if STATE != None:
-            PARPORT.setData(PARSTATE)
+            PARPORT.setData(STATE)
         else:
             PARPORT.setData(0)
 
