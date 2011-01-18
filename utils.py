@@ -34,6 +34,8 @@ def to_decimal(s):
 def to_color(s, sep=','):
     """Tries to cast a string to a color (3-tuple)."""
     c = tuple([int(x) for x in s.split(sep)])
+    if len(c) != 3:
+        raise ValueError
     return c
 
 class Timer:
