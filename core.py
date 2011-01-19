@@ -70,7 +70,9 @@ class CkgProj:
                 'bg': (127, 127, 127),
                 'export_fmt': 'png',
                 'pre': 0,
-                'post': 0}
+                'post': 0,
+                'cross_cols': ((0, 0, 0), (255, 0, 0)),
+                'cross_times': ('Infinity', 1)}
 
     def __init__(self, **keywords):
         """Initializes a new project, or loads it from a path.
@@ -125,6 +127,18 @@ class CkgProj:
             if value not in EXPORT_FMTS:
                 msg = 'image format not recognized or supported'
                 raise FileFormatError(msg)
+        elif name == 'cross_cols':
+            if len(value) != 2:
+                raise ValueError
+            for col in value:
+                if len(col) != 3:
+                    raise ValueError
+            value = tuple([tuple([int(c) for c in col]) for col in value])
+        elif name == 'cross_times':
+            if len(value) != 2:
+                raise ValueError
+            value = tuple([to_decimal(x) for x in value])
+
         # Store value
         self.__dict__[name] = value
         # Set dirty bit
@@ -258,8 +272,11 @@ class CkgProj:
 
         """
 
-        # Create fixation cross
-        fix_cross = graphics.Cross([r/2 for r in self.res], (20, 20))
+        # Create fixation crosses
+        fix_crosses = [graphics.Cross([r/2 for r in self.res],
+                                      (20, 20),
+                                      col = cross_col) 
+                       for cross_col in self.cross_cols]
         # Create test rectangle
         if phototest:
             test_rect = graphics.Rect((0, self.res[1]), 
@@ -366,8 +383,12 @@ class CkgProj:
                 signals.set_stop()
             else:
                 signals.set_null()
-            # Draw fixation cross
-            fix_cross.gl_draw()
+            # Draw fixation cross based on current count
+            if (count % (sum(self.cross_times) * self.fps) 
+                < self.cross_times[0] * self.fps):
+                fix_crosses[0].gl_draw()
+            else:
+                fix_crosses[1].gl_draw()                
 
             # Increment count and set whether groups should be shown
             count += 1
@@ -485,8 +506,12 @@ class CkgProj:
                 if cur_group != None:
                     cur_group.draw()
                     cur_group.update(self.fps)
-            # Draw fixation cross
-            fix_cross.gl_draw()
+            # Draw fixation cross based on current count
+            if (count % (sum(self.cross_times) * self.fps) 
+                < self.cross_times[0] * self.fps):
+                fix_crosses[0].gl_draw()
+            else:
+                fix_crosses[1].gl_draw()                
 
             # Save current frame to file
             savepath = \
