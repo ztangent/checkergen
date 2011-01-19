@@ -723,9 +723,7 @@ class CkgCmd(cmd.Cmd):
 
     display_parser = CmdParser(add_help=False, prog='display',
                                description='''Displays the animation in a
-                                              window or in fullscreen.
-                                              Beware of setting priority
-                                              to realtime.''')
+                                              window or in fullscreen.''')
     display_parser.add_argument('-f', '--fullscreen', action='store_true',
                                 help='sets fullscreen mode, ESC to quit')
     display_parser.add_argument('-p', '--priority', metavar='LEVEL',
@@ -734,6 +732,9 @@ class CkgCmd(cmd.Cmd):
                                         less dropped frames (choices:
                                         0-3, low, normal, high,
                                         realtime)''')
+    display_parser.add_argument('-r', '--repeat', metavar='N', type=int,
+                                help='''repeatedly display specified display
+                                        groups N number of times''')
     display_parser.add_argument('-pt', '--phototest', action='store_true',
                                 help='''draw white test rectangle in topleft
                                         corner of screen when groups become
@@ -767,12 +768,17 @@ class CkgCmd(cmd.Cmd):
             print "error:", str(sys.exc_value)
             self.__class__.display_parser.print_usage()
             return
-        for i in set(args.idlist):
-            if i >= len(self.cur_proj.groups) or i < 0:
-                print 'error: group', i, 'does not exist'
+        if len(args.idlist) == 0:
+            group_queue = list(reversed(self.cur_proj.groups))
+        else:
+            for i in set(args.idlist):
+                if i >= len(self.cur_proj.groups) or i < 0:
+                    print 'error: group', i, 'does not exist'
                 return
-        group_queue = list(reversed([self.cur_proj.groups[i]
-                                     for i in args.idlist]))
+            group_queue = list(reversed([self.cur_proj.groups[i]
+                                         for i in args.idlist]))
+        if args.repeat != None:
+            group_queue = list(group_queue * args.repeat)
         if args.priority != None:
             if args.priority.isdigit():
                 args.priority = int(args.priority)
