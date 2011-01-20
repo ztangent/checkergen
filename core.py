@@ -375,12 +375,12 @@ class CkgProj:
 
             # Send signals upon group visibility change
             if group_vis_flip == 1:
-                signals.set_start()
+                signals.set_group_start()
                 # Draw test rectangle
                 if phototest:
                     test_rect.gl_draw()
             elif group_vis_flip == -1:
-                signals.set_stop()
+                signals.set_group_stop()
             else:
                 signals.set_null()
             # Draw fixation cross based on current count
@@ -592,9 +592,13 @@ class CkgDisplayGroup:
 
     def update(self, fps):
         """Increments internal count, makes group visible when appropriate."""
-            
-        # Update contained shapes, set triggers to be sent
+        
         if self.visible:
+            # Set triggers to be sent
+            for n, shape in enumerate(self.shapes):
+                if shape.flipped:
+                    signals.set_board_flip(n)
+            # Update contained shapes
             for shape in self.shapes:
                 shape.update(fps)
 
@@ -718,6 +722,7 @@ class CheckerBoard(CheckerShape):
             new_phase = self.phase
         self._cur_phase = new_phase
         self._prev_phase = new_phase
+        self.flipped = False
         self._first_draw = True
         if not self._computed:
             self.compute()
@@ -730,6 +735,12 @@ class CheckerBoard(CheckerShape):
             self._cur_phase += degs_per_frame
             if self._cur_phase >= 360:
                 self._cur_phase %= 360
+        cur_n = int(self._cur_phase // 180)
+        prev_n = int(self._prev_phase // 180)
+        if cur_n != prev_n:
+            self.flipped = True
+        else:
+            self.flipped = False
 
     def compute(self):
         """Computes a model of the checkerboard for drawing later."""

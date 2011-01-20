@@ -5,6 +5,7 @@ SERPORT = None
 PARPORT = None
 STATE = None
 OLD_STATE = None
+BOARD_FLAG = 64 # 0b01000000
 GROUP_START = 42 # 0b00101010
 GROUP_STOP = 17 # 0b00010001
 
@@ -99,13 +100,19 @@ def init(sigser, sigpar):
     if sigpar:
         par_init()
 
-def set_start():
+def set_board_flip(board_id):
+    global STATE
+    global OLD_STATE
+    OLD_STATE = STATE
+    STATE = BOARD_FLAG + board_id
+
+def set_group_start():
     global STATE
     global OLD_STATE
     OLD_STATE = STATE
     STATE = GROUP_START
 
-def set_stop():
+def set_group_stop():
     global STATE
     global OLD_STATE
     OLD_STATE = STATE
