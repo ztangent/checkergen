@@ -223,6 +223,15 @@ class CkgCmd(cmd.Cmd):
     set_parser.add_argument('--post', type=to_decimal, metavar='SECONDS',
                               help='''time in seconds a blank screen will
                                       be shown after all display groups''')
+    set_parser.add_argument('--cross_cols', metavar='COLOR1,COLOR2',
+                            action=store_tuple(2, ',', to_color, [';']),
+                            help='''fixation cross coloration
+                                    (color format: R;G;B, 
+                                    component range from 0-255)''')
+    set_parser.add_argument('--cross_times', metavar='TIME1,TIME2',
+                           action=store_tuple(2, ',', to_decimal),
+                           help='''time in seconds each cross color
+                                   will be displayed''')
 
     def help_set(self):
         self.__class__.set_parser.print_help()
@@ -668,6 +677,13 @@ class CkgCmd(cmd.Cmd):
             print \
                 ls_str(self.cur_proj.pre).rjust(26),\
                 ls_str(self.cur_proj.post).rjust(26)
+            print \
+                'cross colors'.rjust(26),\
+                'cross times'.rjust(26)
+            print \
+                ls_str(self.cur_proj.cross_cols).rjust(26),\
+                ls_str(self.cur_proj.cross_times).rjust(26)
+
 
         if not args.settings and not args.groups:
             # Insert empty line if both groups and project 
