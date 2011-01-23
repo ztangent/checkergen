@@ -785,23 +785,26 @@ class CkgCmd(cmd.Cmd):
         if self.cur_proj == None:
             print 'please create or open a project first'
             return
+
         try:
             args = self.__class__.display_parser.parse_args(shlex.split(line))
         except CmdParserError:
             print "error:", str(sys.exc_value)
             self.__class__.display_parser.print_usage()
             return
-        if len(args.idlist) == 0:
-            group_queue = list(reversed(self.cur_proj.groups))
-        else:
+
+        if len(args.idlist) > 0:
             for i in set(args.idlist):
                 if i >= len(self.cur_proj.groups) or i < 0:
                     print 'error: group', i, 'does not exist'
                 return
             group_queue = list(reversed([self.cur_proj.groups[i]
                                          for i in args.idlist]))
+        else:
+            group_queue = []
         if args.repeat != None:
             group_queue = list(group_queue * args.repeat)
+
         if args.priority != None:
             if args.priority.isdigit():
                 args.priority = int(args.priority)
@@ -810,6 +813,7 @@ class CkgCmd(cmd.Cmd):
             except (ValueError, NotImplementedError):
                 print "error:", str(sys.exc_value)
                 print "continuing..."
+
         try:
             self.cur_proj.display(fullscreen=args.fullscreen,
                                   logtime=args.logtime,
@@ -821,6 +825,7 @@ class CkgCmd(cmd.Cmd):
         except (IOError, NotImplementedError):
             print "error:", str(sys.exc_value)
             return
+
         if args.priority != None:
             try:
                 priority.set('normal')
@@ -838,6 +843,9 @@ class CkgCmd(cmd.Cmd):
                                dest='folder', action='store_false',
                                help='''force images not to exported in 
                                        a containing folder''')
+    export_parser.add_argument('-r', '--repeat', metavar='N', type=int,
+                                help='''repeatedly export specified display
+                                        groups N number of times''')
     export_parser.add_argument('duration', nargs='?',
                                type=to_decimal, default='Infinity',
                                help='''number of seconds of the animation
@@ -847,7 +855,7 @@ class CkgCmd(cmd.Cmd):
                                help='''destination directory for export
                                        (default: current working directory)''')
     export_parser.add_argument('idlist', nargs='*', metavar='id', type=int,
-                               help='''list of display groups to be displayed
+                               help='''list of display groups to be exported
                                        in the specified order (default: order
                                        by id, i.e. group 0 is first)''')
 
@@ -867,12 +875,17 @@ class CkgCmd(cmd.Cmd):
             self.__class__.export_parser.print_usage()
             return        
 
-        for i in set(args.idlist):
-            if i >= len(self.cur_proj.groups) or i < 0:
-                print 'error: group', i, 'does not exist'
+        if len(args.idlist) > 0:
+            for i in set(args.idlist):
+                if i >= len(self.cur_proj.groups) or i < 0:
+                    print 'error: group', i, 'does not exist'
                 return
-        group_queue = list(reversed([self.cur_proj.groups[i]
-                                     for i in args.idlist]))
+            group_queue = list(reversed([self.cur_proj.groups[i]
+                                         for i in args.idlist]))
+        else:
+            group_queue = []
+        if args.repeat != None:
+            group_queue = list(group_queue * args.repeat)
 
         try:
             self.cur_proj.export(export_dir=args.dir,

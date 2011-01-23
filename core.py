@@ -25,7 +25,7 @@ CKG_FMT = 'ckg'
 XML_NAMESPACE = 'http://github.com/ZOMGxuan/checkergen'
 MAX_EXPORT_FRAMES = 100000
 PRERENDER_TO_TEXTURE = False
-# EXPORT_FMTS = ['png']
+EXPORT_FMTS = ['png']
 
 def xml_get(parent, namespace, name, index=0):
     """Returns concatenated text node values inside an element."""
@@ -274,8 +274,7 @@ class CkgProj:
 
         # Create fixation crosses
         fix_crosses = [graphics.Cross([r/2 for r in self.res],
-                                      (20, 20),
-                                      col = cross_col) 
+                                      (20, 20), col = cross_col) 
                        for cross_col in self.cross_cols]
         # Create test rectangle
         if phototest:
@@ -461,8 +460,8 @@ class CkgProj:
         count = 0
 
         # Limit export duration to anim duration
-        export_stop = export_duration * self.fps
-        export_stop = min(export_stop, anim_stop)
+        frames = export_duration * self.fps
+        frames = min(frames, anim_stop)
 
         # Warn user if a lot of frames will be exported
         if frames > MAX_EXPORT_FRAMES and not force:
@@ -476,8 +475,10 @@ class CkgProj:
             if not os.path.isdir(export_dir):
                 os.mkdir(export_dir)
 
-        # Create fixation cross
-        fix_cross = graphics.Cross([r/2 for r in self.res], (20, 20))
+        # Create fixation crosses
+        fix_crosses = [graphics.Cross([r/2 for r in self.res],
+                                      (20, 20), col = cross_col) 
+                       for cross_col in self.cross_cols]
 
         # Set up canvas and framebuffer object
         canvas = pyglet.image.Texture.create(*self.res)
@@ -487,7 +488,7 @@ class CkgProj:
         fbo.clear()
 
         # Main loop
-        while count < export_stop:
+        while count < frames:
             fbo.clear()
 
             if groups_visible:
