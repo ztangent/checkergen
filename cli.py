@@ -15,8 +15,11 @@ from graphics import locations
 from utils import *
 
 CMD_PROMPT = '(ckg) '
+CMD_EOF_STRING = 'Ctrl-D'
+if sys.platform == 'win32':
+    CMD_EOF_STRING = 'Ctrl-Z + Enter'
 CMD_INTRO = '\n'.join(["Enter 'help' for a list of commands.",
-                       "Enter 'quit' or Ctrl-D to exit."])
+                       "Enter 'quit' or {0} to exit.".format(CMD_EOF_STRING)])
 
 def store_tuple(nargs, sep, typecast=None, castargs=[]):
     """Returns argparse action that stores a tuple."""
@@ -53,19 +56,23 @@ PARSER.add_argument('-c', '--cmd', dest='cmd_mode', action='store_true',
 PARSER.add_argument('-d', '--display',
                     dest='display_flag', action='store_true',
                     help='displays the animation on the screen')
-PARSER.add_argument('-e', '--export', dest='export_dir', metavar='dir',
-                    help='export the animation to the specified directory')
+PARSER.add_argument('-e', '--export', dest='export_dur', metavar='DUR',
+                    help='export DUR seconds of the project animation')
 PARSER.add_argument('-f', '--fullscreen', action='store_true',
                     help='animation displayed in fullscreen mode')
-PARSER.add_argument('--fmt', dest='export_fmt', choices=core.EXPORT_FMTS,
-                    help='image format for animation to be exported as')
-PARSER.add_argument('path', nargs='?', type=file,
+# PARSER.add_argument('--fmt', dest='export_fmt', choices=core.EXPORT_FMTS,
+#                     help='image format for animation to be exported as')
+PARSER.add_argument('--dir', dest='export_dir', 
+                    default=os.getcwd(), metavar='PATH',
+                    help='''destination directory for export
+                            (default: current working directory)''')
+PARSER.add_argument('path', metavar='project', nargs='?', type=file,
                     help='checkergen project file to open')
 
 def process_args(args):
     """Further processes the arguments returned by the main parser."""
 
-    if args.export_dir != None:
+    if args.export_dur != None:
         args.export_flag = True
     else:
         args.export_flag = False
@@ -213,10 +220,10 @@ class CkgCmd(cmd.Cmd):
                             help='''background color of the canvas
                                     (color format: R,G,B,
                                     component range from 0-255)''')
-    set_parser.add_argument('--fmt', dest='export_fmt', 
-                            choices=core.EXPORT_FMTS,
-                            help='''image format for animation
-                                    to be exported as''')
+    # set_parser.add_argument('--fmt', dest='export_fmt', 
+    #                         choices=core.EXPORT_FMTS,
+    #                         help='''image format for animation
+    #                                 to be exported as''')
     set_parser.add_argument('--pre', type=to_decimal, metavar='SECONDS',
                               help='''time in seconds a blank screen will
                                       be shown before any display groups''')
@@ -660,17 +667,17 @@ class CkgCmd(cmd.Cmd):
         if not args.groups:
             print 'PROJECT SETTINGS'.center(70,'*')
             print \
-                'name'.rjust(13),\
-                'fps'.rjust(6),\
-                'resolution'.rjust(12),\
-                'bg color'.rjust(16),\
-                'format'.rjust(7)
+                'name'.rjust(16),\
+                'fps'.rjust(7),\
+                'resolution'.rjust(14),\
+                'bg color'.rjust(18)
+                # 'format'.rjust(7)
             print \
-                ls_str(self.cur_proj.name).rjust(13),\
-                ls_str(self.cur_proj.fps).rjust(6),\
-                ls_str(self.cur_proj.res).rjust(12),\
-                ls_str(self.cur_proj.bg).rjust(16),\
-                ls_str(self.cur_proj.export_fmt).rjust(7)
+                ls_str(self.cur_proj.name).rjust(16),\
+                ls_str(self.cur_proj.fps).rjust(7),\
+                ls_str(self.cur_proj.res).rjust(14),\
+                ls_str(self.cur_proj.bg).rjust(18)
+                # ls_str(self.cur_proj.export_fmt).rjust(7)
             print \
                 'pre-display'.rjust(26),\
                 'post-display'.rjust(26)
@@ -824,9 +831,9 @@ class CkgCmd(cmd.Cmd):
                               description='''Exports animation as an image
                                              sequence (in a folder) to the
                                              specified directory.''')
-    export_parser.add_argument('--fmt', dest='export_fmt',
-                               choices=core.EXPORT_FMTS,
-                               help='image format for export')
+    # export_parser.add_argument('--fmt', dest='export_fmt',
+    #                            choices=core.EXPORT_FMTS,
+    #                            help='image format for export')
     export_parser.add_argument('-n','--nofolder',
                                dest='folder', action='store_false',
                                help='''force images not to exported in 
@@ -871,7 +878,6 @@ class CkgCmd(cmd.Cmd):
             self.cur_proj.export(export_dir=args.dir,
                                  export_duration=args.duration,
                                  group_queue=group_queue,
-                                 export_fmt=args.export_fmt,
                                  folder=args.folder)
         except IOError:
             print "error:", str(sys.exc_value)
@@ -885,7 +891,7 @@ class CkgCmd(cmd.Cmd):
                         self.cur_proj.export(export_dir=args.dir,
                                              export_duration=args.duration,
                                              group_queue=group_queue,
-                                             export_fmt=args.export_fmt,
+                                             export_fmt=None,
                                              folder=args.folder,
                                              force=True)
                         break

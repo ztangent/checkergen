@@ -23,9 +23,9 @@ from utils import *
 
 CKG_FMT = 'ckg'
 XML_NAMESPACE = 'http://github.com/ZOMGxuan/checkergen'
-EXPORT_FMTS = ['png']
 MAX_EXPORT_FRAMES = 100000
 PRERENDER_TO_TEXTURE = False
+# EXPORT_FMTS = ['png']
 
 def xml_get(parent, namespace, name, index=0):
     """Returns concatenated text node values inside an element."""
