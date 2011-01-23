@@ -20,6 +20,8 @@ optional arguments:
                         working directory)
 """
 
+import sys
+sys.path.append('src')
 import core
 import cli
 

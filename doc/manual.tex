@@ -1,0 +1,449 @@
+\documentclass[12pt,titlepage]{article}
+
+%Preamble
+\usepackage{a4wide}
+%\usepackage{savetrees}
+\usepackage{setspace}
+%\usepackage{graphicx}
+%\usepackage{amsmath}
+%\usepackage{float}
+\usepackage{listings}
+\usepackage{color}
+%Use Helvetica clone as font
+\usepackage[T1]{fontenc}
+\usepackage{tgheros}
+\usepackage[colorlinks=true,linkcolor=black]{hyperref}
+
+%Make sans serif
+\renewcommand*\familydefault{\sfdefault}
+%Change default monotype font
+\renewcommand*\ttdefault{txtt}
+\definecolor{light-gray}{gray}{0.95}
+
+%Set listings language to bash
+\lstset{
+  language=bash,
+  basicstyle=\ttfamily,
+  keywordstyle=,
+  backgroundcolor=\color{light-gray}}
+
+\newenvironment{compactemize}
+{\begin{itemize}
+  \setlength{\itemsep}{1.5pt}
+  \setlength{\parskip}{0pt}
+  \setlength{\parsep}{0pt}}
+{\end{itemize}}
+
+\begin{document}
+
+\title{\textbf{checkergen user manual}}
+\author{}
+\date{published \today}
+
+\maketitle
+
+\tableofcontents
+\pagebreak
+
+\onehalfspacing
+
+\section{Introduction}
+
+Checkergen is a simple program written in Python which generates
+flashing checkerboard patterns for use in psychophysics experiments. A
+command line interface (CLI) is provided for the setting of
+parameters, and output either to screen or to file is provided.
+
+In checkergen, you can create checkerboard patterns and vary the
+size, position, colors, amount of distortion along the x and y axes,
+as well as the frequency and phase of flashing.
+
+You can then display these patterns on screen, and at the same time
+send trigger signals through a serial or parallel port to a data
+acquisition machine. Alternatively, you can export the patterns as a
+series of image files which can then be displayed by another
+stimulus-presenting program.
+
+\section{Requirements}
+
+\begin{compactemize}
+\item Python 2.7 or Python 2.6 + argparse module
+\item pyglet (version >= 1.1.4 recommended)
+\item pySerial if you want to send trigger signals via a serial port
+\item pyParallel if you want to send trigger signals via a parallel port
+\begin{compactemize}
+\item giveio driver required on Windows
+\item see pyParallel homepage for other requirements
+\end{compactemize}
+\item pywin32 if you want to increase process priority on Windows
+\item OpenGL installation with the \emph{GL\_EXT\_framebuffer\_object}
+  extension for export and scale-to-fullscreen functionality
+\end{compactemize}
+
+\section{Running \emph{checkergen}}
+
+Open a command prompt or terminal and make sure you are in the same
+directory as the file \texttt{checkergen.py}. Also make sure that Python
+is on your system path. On a UNIX-like OS, enter:
+\begin{lstlisting}
+./checkergen.py
+\end{lstlisting}
+On Windows, enter:
+\begin{lstlisting}
+checkergen.py
+\end{lstlisting}
+
+Once you run checkergen, the checkergen prompt will appear:
+\begin{lstlisting}
+Enter `help' for a list of commands.
+Enter `quit' or Ctrl-D to exit.
+(ckg) 
+\end{lstlisting}
+
+Checkergen can be supplied with the path to a project file as an
+argument, such that that project will be loaded upon startup. For
+other options, run checkergen with \lstinline{--help} as an option.
+
+\section{Projects}
+
+Stimuli you create in checkergen are stored as
+\emph{projects}. Checkergen projects contain all your checkerboards,
+as well as various other settings like framerate in frames per second
+(fps) and background color. Projects are saved as XML files with 
+\texttt{.ckg} extension. The name of the project is always the same as
+the name of the file it is saved as, excluding the extension.
+
+\subsection{Creating a new project}
+
+To create a new project, enter: 
+\begin{lstlisting}
+(ckg) new [projectname]
+\end{lstlisting}
+\lstinline{projectname} is optional and defaults to `untitled'. All
+project settings are initialized to reasonable defaults.
+
+\subsection{Saving a project}
+To save the project you've just created, enter: 
+\begin{lstlisting}
+(ckg) save [path/to/file.ckg]
+\end{lstlisting}
+If the path is not specified, your project will be saved to the
+current working directory as \lstinline{projectname.ckg}. The path can
+either be absolute or relative, but must always refer to a file with a
+\texttt{.ckg} extension. The name of the saved file becomes the project
+name.
+
+\subsection{Opening an existing project}
+To open an existing project, enter:
+\begin{lstlisting}
+(ckg) open path/to/file.ckg
+\end{lstlisting}
+As with \texttt{save}, the specified file must have the \texttt{.ckg}
+extension. The current working directory will be changed to the
+directory containing the specified file.
+
+\subsection{Closing the project}
+To close the project, enter:
+\begin{lstlisting}
+(ckg) close
+\end{lstlisting}
+If unsaved changes exist in the project, you will be prompted to save
+the file first.
+
+\subsection{Project settings}
+
+Project settings can be edited using the \texttt{set} command. The
+usage is as follows:
+\begin{lstlisting}
+set [--name NAME] [--fps FPS] [--res WIDTH,HEIGHT]
+    [--bg COLOR] [--pre SECONDS] [--post SECONDS] 
+    [--cross_cols COLOR1,COLOR2] [--cross_times TIME1,TIME2]
+\end{lstlisting}
+A full description can be seen by entering \lstinline{help set} into
+the checkergen prompt.
+
+An important point to note is to always remember to \texttt{set} the
+fps of your project to the framerate of the monitor you are using, as
+there is no auto-detect functionality. Otherwise, the pattern
+animation will not be displayed at the correct speed. For example, if
+your monitor has a 120 Hz refresh rate, do:
+\begin{lstlisting}
+(ckg) set --fps 120
+\end{lstlisting}
+
+\subsection{Listing project information}
+
+To get an overview of the current project, enter the \texttt{ls}
+command. This will list all project settings, as well as all display
+groups, checkerboards, and their properties. The following is some
+sample output:
+
+{
+\small
+\begin{lstlisting}
+(ckg) ls
+***************************PROJECT SETTINGS***************************
+            name     fps     resolution           bg color
+         2groups     120        800,600        127,127,127
+               pre-display               post-display
+                         0                          0
+              cross colors                cross times
+             0;0;0,255;0;0                 Infinity,1
+
+*******************************GROUP 0********************************
+         pre-display              display         post-display
+                   5                    5                    0
+   shape id       dims      init_unit       end_unit       position
+          0        5,5          40,40          50,50        380,320
+          1        5,5          40,40          50,50        420,320
+
+   shape id                      colors       anchor   freq   phase
+          0           0;0;0,255;255;255  bottomright      2       0
+          1           0;0;0,255;255;255   bottomleft      1      90
+
+*******************************GROUP 1********************************
+         pre-display              display         post-display
+                   5                    5                    0
+   shape id       dims      init_unit       end_unit       position
+          0        5,5          40,40          50,50        380,320
+          1        5,5          40,40          50,50        420,320
+
+   shape id                      colors       anchor   freq   phase
+          0           0;0;0,255;255;255  bottomright      1     180
+          1           0;0;0,255;255;255   bottomleft      2     270
+\end{lstlisting}
+}
+
+\section{Display groups}
+
+In order to display different sets of checkerboards at different
+points in time, checkerboards are organized into \emph{display}
+\emph{groups}. All checkerboards in a display group are displayed
+together for a certain duration, after which the next display group
+takes over.
+
+In addition to specifying the duration of a display group, you can
+also specify the duration a blank screen is shown before and
+after the display group is actually displayed.
+
+\subsection{Creating a display group}
+Display groups are created using \texttt{mkgrp}:
+\begin{lstlisting}
+(ckg) mkgrp [pre] [disp] [post]
+\end{lstlisting}
+where
+\begin{compactemize}
+\item \texttt{pre} is the time in seconds a blank screen is shown
+  before the checkerboards in a display group are displayed,
+\item \texttt{disp} is the time in seconds the checkerboards are
+  actually displayed on-screen,
+\item \texttt{post} is the time in seconds a blank screen is shown
+  after the checkerboards in a display group are displayed.
+\end{compactemize}
+\texttt{pre} and \texttt{post} default to \texttt{0}, while
+\texttt{disp} defaults to \texttt{Infinity}. Creating a display group
+automatically makes it the current active context for creation and
+editing of checkerboards.
+
+\subsection{Changing the active group}
+All commands that manipulate checkerboards are directed to the display
+group that is currently active for editing. To change the current
+active display group, do:
+\begin{lstlisting}
+(ckg) chgrp [group_id]
+\end{lstlisting}
+where \lstinline{group_id} is the ID number of the group you want to
+switch to. The first group you create will have ID number 0, the next
+will have ID number 1, and so on. If \lstinline{group_id} is not
+specified, then checkergen prints a message telling you which is the
+current active display group.
+
+\subsection{Editing display groups}
+\texttt{edgrp} can be used to edit display groups that have already
+been created. It is used as follows:
+\begin{lstlisting}
+edgrp [--pre SECONDS] [--disp SECONDS] [--post SECONDS]
+      list_of_group_ids
+\end{lstlisting}
+The options you can specify are the same as in \texttt{mkgrp}. Edits
+will be performed on all the groups specified by the ID numbers in
+\lstinline{list_of_group_ids}. At least one group id must be
+specified.
+
+\subsection{Removing groups}
+To remove display groups, simply do:
+\begin{lstlisting}
+(ckg) rmgrp list_of_group_ids
+\end{lstlisting}
+If the active display group is removed, then group 0 becomes the new
+active display group (unless there are no more groups in the project).
+
+\section{Checkerboards}
+
+Checkerboards are managed using similar commands to those used for
+display groups. These commands only affect the current active display
+group, so \texttt{chgrp} must be used before checkerboards in another
+group can be managed.
+
+As mentioned in the introduction, checkerboard patterns have a variety
+of attributes. A full list of attributes follows:
+\begin{compactemize}
+\item dimensions (in number of unit cells)
+\item size of the initial unit cell (in pixels)
+\item size of the final unit cell (in pixels)
+\item position (of the anchor, in pixels from bottom-right corner of window)
+\item anchor (i.e. where the initial cell is positioned within the board
+  e.g. top-left)
+\item colors (which alternate both in space and time)
+\item frequency of flashing / color alternation (in Hz)
+\item initial phase of color alternation (in degrees)
+\end{compactemize}
+
+\subsection{Creating a checkerboard}
+To create a checkerboard in the current display group, use
+\texttt{mk}. The usage is as follows:
+\begin{lstlisting}
+mk dims init_unit end_unit position anchor cols freq [phase]
+\end{lstlisting}
+Except for the phase, which defaults to \texttt{0}, you have to
+specify all the attributes mentioned above. For more detailed
+information, enter \texttt{help mk}.
+
+\subsection{Editing checkerboards}
+Similar to \texttt{edgrp}, you can edit checkerboards in the current
+group by using \texttt{ed} and specifying a list of checkerboard
+ID numbers. The usage is as follows:
+\begin{lstlisting}
+ed [--dims WIDTH,HEIGHT] [--init_unit WIDTH,HEIGHT]
+   [--end_unit WIDTH,HEIGHT] [--position X,Y]
+   [--anchor LOCATION] [--cols COLOR1,COLOR2]
+   [--freq FREQ] [--phase PHASE]
+   list_of_checkerboard_ids
+\end{lstlisting}
+For more detailed information, enter \texttt{help ed}.
+
+\subsection{Removing checkerboards}
+Much like \texttt{rmgrp}, to remove checkerboards from the current
+group, simply use \texttt{rm}:
+\begin{lstlisting}
+(ckg) rm list_of_checkerboard_ids
+\end{lstlisting}
+
+\section{Display}
+To display the project on-screen, use the \texttt{display} command.
+To stop displaying project animation midway, press ESC.  The usage is
+as follows:
+\begin{lstlisting}
+display [-f] [-p LEVEL] [-r N] [-pt] [-lt] [-ld] [-ss] [-sp]
+        [list_of_group_ids]
+\end{lstlisting}
+With no options specified, the project will be displayed in a window,
+going through each display group in order. If you want display groups
+to be displayed in a specific order, just supply a list of group ids
+as arguments. If you want to repeat displaying groups in that order
+several times, then give the \lstinline{-r/--repeat} option and
+specify how many repeats you want. For example, entering:
+\begin{lstlisting}
+display -r 20 2 0 1 1
+\end{lstlisting}
+will result in group 2 being displayed first, then group 0, then group
+1, then group 1 again, with the sequence of groups being shown 20
+times in total.
+
+The following subsections describe the other options in greater
+detail.
+
+\subsection{Fullscreen display}
+
+The \lstinline{-f/--fullscreen} flag, when specified, causes the
+project to be displayed in fullscreen. If the project's resolution is
+not the same as the screen's resolution, then checkergen will try to
+stretch the animation to fit the screen. This requires the use of
+framebuffer objects, so your OpenGL installation must support the
+\emph{GL\_EXT\_framebuffer\_object} extension.
+
+\subsection{Setting the process priority}
+
+To reduce the number of monitor refreshes that are missed, checkergen
+can increase the priority of the Python process it is running in, but
+thus far only on Windows. This functionality requires the pywin32
+module, and is invoked by giving the \lstinline{-p/--priority} flag
+and specifying the priority level.
+
+There are 4 priority levels, low, normal, high and realtime, which can
+be also specified by integers in the range 0 to 3 (i.e. 0 means low, 3
+means realtime). When conducting an experiment, use 
+\lstinline{display -p realtime} for the best performance. However, using
+realtime priority might cause the computer to become less responsive
+to user input in some cases.
+
+\subsection{Logging time information}
+Specifying the \lstinline{-lt/--logtime} flag will enable logging of
+each frame's timestamp, while specifying the \lstinline{-ld/--logdur}
+flag will enable logging of each frame's duration. This information
+will be output to a log file in the same directory as the project file
+once display is done, with the filename as
+\texttt{projectname.log}. If either kind of logging is enabled, and if
+signalling is also enabled (\lstinline{-sp} or \lstinline{-ss} flags),
+then the log file will also record the trigger signals sent at each
+frame, if there were any.
+
+\subsection{Sending triggers}
+
+To send trigger signals via the parallel port to the data acquisition
+machine, specify the \lstinline{-sp/--sigpar} flag. To send signals
+via the serial port, specify the \lstinline{-ss/--sigser} flag. Serial
+port functionality has not, as of this date, been tested.
+
+Unique triggers are sent upon several events:
+\begin{compactemize}
+\item When the checkerboards in a display group appear on-screen (42
+  sent)
+\item When the checkerboards in a display group disappear from the
+  screen (17 sent)
+\item Whenever a checkerboard undergoes a color reversal (64 + board
+  id sent)
+\end{compactemize}
+Should two or more checkerboards happen to undergo a color reversal at
+the same time, the trigger sent will be for the checkerboard
+with the largest ID number.
+
+Triggers are sent immediately after the screen flip operation returns,
+ensuring as far as possible that the stimulus onset is synchronized
+with the sending of the trigger. For a discussion of issues regarding
+synchronization of the screen with the signal-sending port, see
+section \ref{sec:phototest}.
+
+\subsection{Photodiode testing}
+\label{sec:phototest}
+
+To facilitate testing of stimulus onset time and refresh rates using a
+photodiode, the \lstinline{-pt/--phototest} flag can be
+specified. When specified, a small white test rectangle will be
+displayed (for the duration of one frame) in the top-left corner of the
+window/screen whenever the checkerboards in a display group appear
+on-screen. Hence, this should coincide with a trigger sent by the
+parallel or serial port.
+
+However tests have shown that on certain set-ups, the trigger is sent
+by the port one frame earlier than when the photodiode signal is
+detected, suggesting that the trigger is sent before the screen flip
+operation has completed entirely. If this happens to you, it may be
+due to vertical sync (vsync) not being properly enabled. To play safe,
+it is advisable to configure OpenGL or your graphics driver to force
+vsync on for all applications. After doing so, the port signal should
+be synchronized with the photodiode signal.
+
+\section{Export}
+The \texttt{export} command is similar to the \texttt{display}
+command, allowing you to specify the list of group ids to exported, as
+well as allowing you to specify the length of the project animation
+that should be exported (in seconds). Only PNG is supported as an
+export format. The usage is as follows:
+\begin{lstlisting}
+usage: export [-n] [-r N] [duration] [dir] [list_of_group_ids]
+\end{lstlisting}
+For more detailed information, enter \lstinline{help export} into the
+checkergen prompt.
+
+\end{document}
