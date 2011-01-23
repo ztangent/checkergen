@@ -932,4 +932,10 @@ class CkgCmd(cmd.Cmd):
 
     def help_help(self):
         print 'Prints a list of commands.'
-        print 'Type help <topic> for more details on each command.'
+        print "Type 'help <topic>' for more details on each command."
+
+    def default(self, line):
+        command = line.split()[0]
+        print \
+            "'{0}' is not a checkergen command.".format(command),\
+            "Type 'help' for a list of commands"
