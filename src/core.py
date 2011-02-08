@@ -5,7 +5,9 @@ FileFormatError
 FrameOverflowError
 
 Classes:
-CkgProj -- A checkergen project, contains settings and CheckerBoards.
+CkgProj -- A checkergen project, contains settings and CkgDisplayGroups.
+CkgDisplayGroup -- A set of CheckerShapes to be displayed simultaneously.
+CheckerShapes -- Abstract checkered shape class
 CheckerBoard -- A (distorted) checkerboard pattern, can color-flip.
 
 """
@@ -19,6 +21,7 @@ import pyglet
 
 import graphics
 import signals
+import eyetracking
 from utils import *
 
 CKG_FMT = 'ckg'

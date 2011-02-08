@@ -17,7 +17,11 @@ class EyetrackingError(Exception):
 
 def init(user_select = False):
     global VET
-    VET = win32com.client.Dispatch(ProgID)
+    try:
+        VET = win32com.client.Dispatch(ProgID)
+    except:
+        msg = 'could not start VideoEyetracker Toolbox'
+        raise EyetrackingError(msg)
     if user_select:
         if not VET.SelectVideoSource(CRS.vsUserSelect, ''):
             msg = 'could not select video source'
