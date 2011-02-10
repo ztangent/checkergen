@@ -17,7 +17,6 @@ if available:
     # Try dispatching object, else unavailable
     try:
         VET = win32com.client.Dispatch(ProgID)
-        VET = None
     except:
         available = False
 
@@ -29,18 +28,12 @@ if available:
     class EyetrackingError(Exception):
         """Raised when something goes wrong with VET."""
 
-    def init(user_select = False, path = None):
-        global VET
-        try:
-            VET = win32com.client.Dispatch(ProgID)
-        except:
-            msg = 'could not start VideoEyetracker Toolbox'
-            raise EyetrackingError(msg)
+    def select_source(user_select = False, path = None):
         if user_select:
             if not VET.SelectVideoSource(CRS.vsUserSelect, ''):
                 msg = 'could not select video source'
                 raise EyetrackingError(msg)
-        else if path != None:
+        elif path != None:
             # Open from file
             if not VET.SelectVideoSource(CRS.vsFile, path):
                 msg = 'could not use path as video source'
@@ -75,7 +68,9 @@ if available:
            Optionally supply a path with no spaces to a 
            calibration file to load."""
         if path == None:
-            VET.Calibrate()
+            if not VET.Calibrate():
+                msg = 'calibration failed'
+                raise EyetrackingError(msg)
         else:
             if not os.path.isfile(path):
                 msg = 'specified file does not exist'
@@ -86,6 +81,9 @@ if available:
 
     def start():
         """Start tracking the eye."""
+        if VET.CalibrationStatus()[0] == 0:
+            msg = 'subject not yet calibrated'
+            raise EyetrackingError(msg)
         VET.ClearDataBuffer()
         VET.StartTracking()
 

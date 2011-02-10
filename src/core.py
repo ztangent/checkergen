@@ -29,6 +29,8 @@ XML_NAMESPACE = 'http://github.com/ZOMGxuan/checkergen'
 MAX_EXPORT_FRAMES = 100000
 PRERENDER_TO_TEXTURE = False
 EXPORT_FMTS = ['png']
+FIX_POS = (0, 0)
+FIX_RANGE = (20, 20)
 
 def xml_get(parent, namespace, name, index=0):
     """Returns concatenated text node values inside an element."""
@@ -253,7 +255,8 @@ class CkgProj:
         return path
 
     def display(self, fullscreen=False, logtime=False, logdur=False,
-                sigser=False, sigpar=False, phototest=False, group_queue=[]):
+                sigser=False, sigpar=False, phototest=False,
+                eyetrack=False, etuser=False, etvideo=None, group_queue=[]):
         """Displays the project animation on the screen.
 
         fullscreen -- animation is displayed fullscreen if true, stretched
@@ -270,9 +273,16 @@ class CkgProj:
         phototest -- draw white rectangle in topleft corner when each group is
         shown for photodiode to detect
 
+        eyetrack -- use eyetracking to ensure subject is fixating on cross
+
+        etuser -- if true, user gets to select eyetracking video source in GUI
+        
+        etvideo -- optional eyetracking video source file to use instead of
+        live feed
+        
         group_queue -- queue of groups to be displayed (in reverse order),
         defaults to order of groups in project (i.e. groups[0] first, etc.)
-
+                
         """
 
         # Create fixation crosses
@@ -311,6 +321,14 @@ class CkgProj:
                 raise NotImplementedError(msg)
         signals.init(sigser, sigpar)
 
+        # Initialize eyetracking
+        if eyetrack:
+            if not eyetracking.available:
+                msg = 'eyetracking functionality not available'
+                raise NotImplementedError(msg)
+            eyetracking.select_source(etuser, etvideo)
+            eyetracking.start()
+        
         # Stretch to fit screen only if project res does not equal screen res
         scaling = False
         if fullscreen:
@@ -380,6 +398,11 @@ class CkgProj:
                         pass
                 # Draw and then update group
                 if cur_group != None:
+                    if cur_group.visible:
+                        # If not fixating, stop display
+                        if eyetrack:
+                            if not eyetracking.fixating(FIX_POS, FIX_RANGE):
+                                window.has_exit = True
                     cur_group.draw()
                     cur_group.update(self.fps)
 
@@ -436,6 +459,8 @@ class CkgProj:
                     logstring = '\t'.join([logstring, sigmsg])
 
         # Clean up
+        if eyetrack:
+            eyetracking.stop()
         window.close()
         if scaling:
             fbo.delete()

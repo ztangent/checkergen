@@ -10,6 +10,7 @@ import shlex
 
 import core
 import priority
+import eyetracking
 from graphics import locations
 from utils import *
 
@@ -771,6 +772,15 @@ class CkgCmd(cmd.Cmd):
     display_parser.add_argument('-sp', '--sigpar', action='store_true',
                                 help='''send signals through the parallel port 
                                         when shapes are being displayed''')
+    display_parser.add_argument('-et', '--eyetrack', action='store_true',
+                                help='''use eyetracking to ensure that subject
+                                        fixates on the cross in the center''')                  
+    display_parser.add_argument('-eu', '--etuser', action='store_true',
+                                help='''allow user to select eyetracking video
+                                        source from a dialog''')                  
+    display_parser.add_argument('-ev', '--etvideo', metavar='path',
+                                help='''path (with no spaces) to eyetracking
+                                        video file to be used as the source''')                  
     display_parser.add_argument('idlist', nargs='*', metavar='id', type=int,
                                 help='''list of display groups to be displayed
                                         in the specified order (default: order
@@ -824,6 +834,9 @@ class CkgCmd(cmd.Cmd):
                                   sigser=args.sigser,
                                   sigpar=args.sigpar,
                                   phototest=args.phototest,
+                                  eyetrack=args.eyetrack,
+                                  etuser=args.etuser,
+                                  etvideo=args.etvideo,
                                   group_queue=group_queue)
         except (IOError, NotImplementedError):
             print "error:", str(sys.exc_value)
@@ -920,6 +933,22 @@ class CkgCmd(cmd.Cmd):
 
         print "Export done."
 
+    def do_calibrate(self, line):
+        """Calibrate subject for eyetracking, or load a calibration file."""
+        if not eyetracking.available:
+            print "error: eyetracking functionality not available"
+            return
+        path = line.strip().strip('"\'') 
+        if len(path) == 0:
+            path = None
+            if eyetracking.VET.VideoSourceType == 0:
+                # Select default source if none has been selected
+                eyetracking.select_source()
+        try:
+            eyetracking.calibrate(path)
+        except eyetracking.EyetrackingError:
+            print "error:", str(sys.exc_value)
+        
     def do_quit(self, line):
         """Quits the program."""
         if self.save_check():
