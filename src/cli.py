@@ -7,7 +7,6 @@ if os.name == 'posix':
 import argparse
 import cmd
 import shlex
-# import threading
 
 import core
 import priority
@@ -806,13 +805,17 @@ class CkgCmd(cmd.Cmd):
             group_queue = list(group_queue * args.repeat)
 
         if args.priority != None:
-            if args.priority.isdigit():
-                args.priority = int(args.priority)
-            try:
-                priority.set(args.priority)
-            except (ValueError, NotImplementedError):
-                print "error:", str(sys.exc_value)
+            if not priority.available:
+                print "error: setting priority not avaible on", sys.platform
                 print "continuing..."
+            else:
+                if args.priority.isdigit():
+                    args.priority = int(args.priority)
+                try:
+                    priority.set(args.priority)
+                except ValueError:
+                    print "error:", str(sys.exc_value)
+                    print "continuing..."
 
         try:
             self.cur_proj.display(fullscreen=args.fullscreen,

@@ -301,6 +301,14 @@ class CkgProj:
         count = 0
 
         # Initialize ports
+        if sigser:
+            if not signals.available['serial']:
+                msg = 'serial port functionality not available'
+                raise NotImplementedError(msg)
+        if sigpar:
+            if not signals.available['parallel']:
+                msg = 'parallel port functionality not available'
+                raise NotImplementedError(msg)
         signals.init(sigser, sigpar)
 
         # Stretch to fit screen only if project res does not equal screen res

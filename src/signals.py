@@ -50,16 +50,6 @@ if available['serial']:
         global SERPORT
         SERPORT.close()
         SERPORT = None
-else:
-    msg = 'serial port functionality not available'
-    def ser_init(msg=msg):
-        raise NotImplementedError(msg)
-
-    def ser_send(msg=msg):
-        raise NotImplementedError(msg)
-
-    def ser_quit(msg=msg):
-        raise NotImplementedError(msg)
 
 if available['parallel']:
     def par_init():
@@ -79,16 +69,6 @@ if available['parallel']:
         global PARPORT
         PARPORT.setData(0)
         PARPORT = None
-else:
-    msg = 'parallel port functionality not available'
-    def par_init(msg=msg):
-        raise NotImplementedError(msg)
-
-    def par_send():
-        raise NotImplementedError(msg)
-
-    def par_quit(msg=msg):
-        raise NotImplementedError(msg)
 
 def init(sigser, sigpar):
     global STATE
