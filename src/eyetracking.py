@@ -1,5 +1,7 @@
 """Provides support for CRS VideoEyetracker Toolbox."""
 
+import os.path
+
 try:
     import win32com.client
     available = True
@@ -68,9 +70,19 @@ if available:
         if fixation_range != None:
             VET.FixationRange = fixation_range
 
-    def calibrate():
-        """Calibrate the subject."""
-        VET.Calibrate()
+    def calibrate(path = None):
+        """Calibrate the subject.
+           Optionally supply a path with no spaces to a 
+           calibration file to load."""
+        if path == None:
+            VET.Calibrate()
+        else:
+            if not os.path.isfile(path):
+                msg = 'specified file does not exist'
+                raise EyetrackingError(msg)
+            if not VET.LoadCalibrationFile(path):
+                msg = 'file could not be loaded'
+                raise EyetrackingError(msg)
 
     def start():
         """Start tracking the eye."""
@@ -91,7 +103,7 @@ if available:
         which fixation is allowed (in mm)
 
         """
-        if not VET.CalibrationStatus()[0]:
+        if VET.CalibrationStatus()[0] == 0:
             msg = 'subject not yet calibrated'
             raise EyetrackingError(msg)
         if VET.FixationLocation.Fixation:
