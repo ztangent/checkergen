@@ -5,9 +5,12 @@ SERPORT = None
 PARPORT = None
 STATE = None
 OLD_STATE = None
-BOARD_FLAG = 64 # 0b01000000
-GROUP_START = 42 # 0b00101010
-GROUP_STOP = 17 # 0b00010001
+BOARD_FLIP = 64  # 0b01000000
+GROUP_START = 32 # 0b00100000
+GROUP_STOP = 16  # 0b00010000
+USER_START = 8   # 0b00001000
+FIX_START = 4    # 0b00000100
+FIX_STOP = 2     # 0b00000010
 
 available = {'serial': False, 'parallel': False}
 
@@ -80,29 +83,32 @@ def init(sigser, sigpar):
     if sigpar:
         par_init()
 
+def set_state(state):
+    global STATE
+    global OLD_STATE
+    OLD_STATE = STATE
+    STATE = state
+
 def set_board_flip(board_id):
-    global STATE
-    global OLD_STATE
-    OLD_STATE = STATE
-    STATE = BOARD_FLAG + board_id
+    set_state(BOARD_FLIP + board_id)
 
-def set_group_start():
-    global STATE
-    global OLD_STATE
-    OLD_STATE = STATE
-    STATE = GROUP_START
+def set_group_start(group_id):
+    set_state(GROUP_START + group_id)
 
-def set_group_stop():
-    global STATE
-    global OLD_STATE
-    OLD_STATE = STATE
-    STATE = GROUP_STOP
+def set_group_stop(group_id):
+    set_state(GROUP_STOP + group_id)
+
+def set_user_start():
+    set_state(USER_START)
+
+def set_fix_start():
+    set_state(FIX_START)
+
+def set_fix_stop():
+    set_state(FIX_STOP)
 
 def set_null():
-    global STATE
-    global OLD_STATE
-    OLD_STATE = STATE
-    STATE = None
+    set_state(None)
 
 def send(sigser, sigpar):
     if sigser:
@@ -112,8 +118,7 @@ def send(sigser, sigpar):
             par_send()
 
 def quit(sigser, sigpar):
-    global STATE
-    STATE = None
+    set_null()
     if sigser:
         ser_quit()
     if sigpar:

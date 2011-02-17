@@ -802,15 +802,19 @@ class CkgCmd(cmd.Cmd):
             self.__class__.display_parser.print_usage()
             return
 
+        group_queue = []
         if len(args.idlist) > 0:
             for i in set(args.idlist):
-                if i >= len(self.cur_proj.groups) or i < 0:
+                if i >= len(self.cur_proj.groups) or i < -1:
                     print 'error: group', i, 'does not exist'
-                return
-            group_queue = list(reversed([self.cur_proj.groups[i]
-                                         for i in args.idlist]))
+                    return
+            for i in args.idlist:
+                if i == -1:
+                    group_queue.append(core.CkgWaitScreen())
+                else:
+                    group_queue.append(self.cur_proj.groups[i])
         else:
-            group_queue = []
+            group_queue = list(self.cur_proj.groups)
         if args.repeat != None:
             group_queue = list(group_queue * args.repeat)
 
@@ -838,7 +842,7 @@ class CkgCmd(cmd.Cmd):
                                   etuser=args.etuser,
                                   etvideo=args.etvideo,
                                   group_queue=group_queue)
-        except (IOError, NotImplementedError):
+        except (IOError, NotImplementedError, eyetracking.EyetrackingError):
             print "error:", str(sys.exc_value)
             return
 
@@ -895,11 +899,10 @@ class CkgCmd(cmd.Cmd):
             for i in set(args.idlist):
                 if i >= len(self.cur_proj.groups) or i < 0:
                     print 'error: group', i, 'does not exist'
-                return
-            group_queue = list(reversed([self.cur_proj.groups[i]
-                                         for i in args.idlist]))
+                    return
+            group_queue = [self.cur_proj.groups[i] for i in args.idlist]
         else:
-            group_queue = []
+            group_queue = list(self.cur_proj.groups)
         if args.repeat != None:
             group_queue = list(group_queue * args.repeat)
 

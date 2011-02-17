@@ -13,6 +13,10 @@ ProgID = "crsVET.VideoEyeTracker"
 # VET application object
 VET = None
 
+class EyetrackingError(Exception):
+    """Raised when something goes wrong with VET."""
+    pass
+
 if available:
     # Try dispatching object, else unavailable
     try:
@@ -24,9 +28,6 @@ if available:
 
     # For easier access to constants and standardization with MATLAB interface
     CRS = win32com.client.constants
-
-    class EyetrackingError(Exception):
-        """Raised when something goes wrong with VET."""
 
     def select_source(user_select = False, path = None):
         if user_select:

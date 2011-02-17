@@ -31,6 +31,7 @@ PRERENDER_TO_TEXTURE = False
 EXPORT_FMTS = ['png']
 FIX_POS = (0, 0)
 FIX_RANGE = (20, 20)
+SANS_SERIF = ('Helvetica', 'Arial', 'FreeSans')
 
 def xml_get(parent, namespace, name, index=0):
     """Returns concatenated text node values inside an element."""
@@ -280,8 +281,8 @@ class CkgProj:
         etvideo -- optional eyetracking video source file to use instead of
         live feed
         
-        group_queue -- queue of groups to be displayed (in reverse order),
-        defaults to order of groups in project (i.e. groups[0] first, etc.)
+        group_queue -- queue of groups to be displayed, defaults to order of
+        groups in project (i.e. groups[0] first, etc.)
                 
         """
 
@@ -297,13 +298,15 @@ class CkgProj:
 
         # Set-up groups and variables that control their display
         if group_queue == []:
-            group_queue = list(reversed(self.groups))
+            group_queue = list(self.groups)
         cur_group = None
-        group_vis_flip = 0
+        cur_id = -1
+        flipped = 0
+        flip_id = -1
         groups_duration = sum([group.duration() for group in group_queue])
         groups_start = self.pre * self.fps
         groups_stop = (self.pre + groups_duration) * self.fps
-        anim_stop = (self.pre + groups_duration + self.post) * self.fps
+        disp_end = (self.pre + groups_duration + self.post) * self.fps
         if groups_start == 0 and groups_stop > 0:
             groups_visible = True
         else:
@@ -326,6 +329,8 @@ class CkgProj:
             if not eyetracking.available:
                 msg = 'eyetracking functionality not available'
                 raise NotImplementedError(msg)
+            fixating = False
+            old_fixating = False
             eyetracking.select_source(etuser, etvideo)
             eyetracking.start()
         
@@ -337,6 +342,10 @@ class CkgProj:
                 scaling = True
         else:
             window = pyglet.window.Window(*self.res, visible=False)            
+
+        # Set up KeyStateHandler to handle keyboard input
+        keystates = pyglet.window.key.KeyStateHandler()
+        window.push_handlers(keystates)
 
         # Create framebuffer object for drawing unscaled scene
         if scaling:
@@ -366,65 +375,85 @@ class CkgProj:
             timer.start()
 
         # Main loop
-        while not window.has_exit and count < anim_stop:
+        while not window.has_exit and count < disp_end:
             # Clear canvas
             if scaling:
                 fbo.start_render()
                 fbo.clear()
             else:
                 window.clear()
+
             # Assume no change to group visibility
-            group_vis_flip = 0
+            flipped = 0
  
+            # Manage groups when they are on_screen
             if groups_visible:
-                if cur_group != None:
+                # Send special signal if waitscreen ends
+                if isinstance(cur_group, CkgWaitScreen):
+                    if cur_group.over:
+                        signals.set_user_start()
+                        cur_group = None
+                elif cur_group != None:
                     # Check whether group changes in visibility
                     if cur_group.visible != cur_group.old_visible:
+                        flip_id = self.groups.index(cur_group)
                         if cur_group.visible:
-                            group_vis_flip = 1
+                            flipped = 1
                         elif cur_group.old_visible:
-                            group_vis_flip = -1
+                            flipped = -1
                     # Check if current group is over
                     if cur_group.over:
                         cur_group = None
                 # Get next group from queue
                 if cur_group == None:
-                    try:
-                        cur_group = group_queue.pop()
+                    cur_id += 1
+                    if cur_id >= len(group_queue):
+                        groups_visible = False
+                    else:
+                        cur_group = group_queue[cur_id]
                         cur_group.reset()
-                        if cur_group.visible:
-                            group_vis_flip = 1
-                    except IndexError:
-                        pass
+                        if not isinstance(cur_group, CkgWaitScreen):
+                            if cur_group.visible:
+                                flip_id = self.groups.index(cur_group)
+                                flipped = 1
                 # Draw and then update group
                 if cur_group != None:
-                    if cur_group.visible:
-                        # If not fixating, stop display
-                        if eyetrack:
-                            if not eyetracking.fixating(FIX_POS, FIX_RANGE):
-                                window.has_exit = True
                     cur_group.draw()
-                    cur_group.update(self.fps)
+                    cur_group.update(fps=self.fps, keystates=keystates)
 
             # Send signals upon group visibility change
-            if group_vis_flip == 1:
-                signals.set_group_start()
+            if flipped == 1:
+                signals.set_group_start(flip_id)
                 # Draw test rectangle
                 if phototest:
-                    test_rect.gl_draw()
-            elif group_vis_flip == -1:
-                signals.set_group_stop()
+                    test_rect.draw()
+            elif flipped == -1:
+                signals.set_group_stop(flip_id)
             else:
                 signals.set_null()
-            # Draw fixation cross based on current count
-            if (count % (sum(self.cross_times) * self.fps) 
-                < self.cross_times[0] * self.fps):
-                fix_crosses[0].gl_draw()
+
+            # Draw normal cross color if fixating, other color if not
+            if eyetrack:
+                old_fixating = fixating
+                fixating = eyetracking.fixating(FIX_POS, FIX_RANGE)
+                if fixating:
+                    fix_crosses[0].draw()
+                    if not old_fixating:
+                        signals.set_fix_start()
+                else:
+                    fix_crosses[1].draw()
+                    if old_fixating:
+                        signals.set_fix_stop()
+            # Change cross color based on time if eyetracking is not enabled
+            elif (count % (sum(self.cross_times) * self.fps) 
+                  < self.cross_times[0] * self.fps):
+                fix_crosses[0].draw()
             else:
-                fix_crosses[1].gl_draw()                
+                fix_crosses[1].draw()                
 
             # Increment count and set whether groups should be shown
-            count += 1
+            if not isinstance(cur_group, CkgWaitScreen):
+                count += 1
             if groups_start <= count < groups_stop:
                 groups_visible = True
             else:
@@ -454,7 +483,7 @@ class CkgProj:
 
             # Log when signals are sent
             if logtime or logdur:
-                if group_vis_flip != 0 and (sigser or sigpar):
+                if flipped != 0 and (sigser or sigpar):
                     sigmsg = '{0} sent'.format(signals.STATE)
                     logstring = '\t'.join([logstring, sigmsg])
 
@@ -483,21 +512,22 @@ class CkgProj:
 
         # Set-up groups and variables that control their display
         if group_queue == []:
-            group_queue = list(reversed(self.groups))
+            group_queue = list(self.groups)
         cur_group = None
+        cur_id = -1
         groups_duration = sum([group.duration() for group in group_queue])
         groups_start = self.pre * self.fps
         groups_stop = (self.pre + groups_duration) * self.fps
-        anim_stop = (self.pre + groups_duration + self.post) * self.fps
+        disp_end = (self.pre + groups_duration + self.post) * self.fps
         if groups_start == 0 and groups_stop > 0:
             groups_visible = True
         else:
             groups_visible = False
         count = 0
 
-        # Limit export duration to anim duration
+        # Limit export duration to display duration
         frames = export_duration * self.fps
-        frames = min(frames, anim_stop)
+        frames = min(frames, disp_end)
 
         # Warn user if a lot of frames will be exported
         if frames > MAX_EXPORT_FRAMES and not force:
@@ -534,21 +564,22 @@ class CkgProj:
                         cur_group = None
                 # Get next group from queue
                 if cur_group == None:
-                    try:
-                        cur_group = group_queue.pop()
+                    cur_id += 1
+                    if cur_id >= len(group_queue):
+                        groups_visible = False
+                    else:
+                        cur_group = group_queue[cur_id]
                         cur_group.reset()
-                    except IndexError:
-                        pass
                 # Draw and then update group
                 if cur_group != None:
                     cur_group.draw()
-                    cur_group.update(self.fps)
+                    cur_group.update(fps=self.fps)
             # Draw fixation cross based on current count
             if (count % (sum(self.cross_times) * self.fps) 
                 < self.cross_times[0] * self.fps):
-                fix_crosses[0].gl_draw()
+                fix_crosses[0].draw()
             else:
-                fix_crosses[1].gl_draw()                
+                fix_crosses[1].draw()                
 
             # Save current frame to file
             savepath = \
@@ -604,16 +635,16 @@ class CkgDisplayGroup:
     def reset(self):
         """Resets internal count and all contained shapes."""
         self._count = 0
-        self._disp_start = self.pre
-        self._disp_stop = self.pre + self.disp
-        self._end_point = self.pre + self.disp + self.post
+        self._start = self.pre
+        self._stop = self.pre + self.disp
+        self._end = self.pre + self.disp + self.post
         self.over = False
         self.old_visible = False
-        if self._disp_start == 0 and self._disp_stop > 0:
+        if self._start == 0 and self._stop > 0:
             self.visible = True
         else:
             self.visible = False
-            if self._end_point == 0:
+            if self._end == 0:
                 self.over = True
         for shape in self.shapes:
             shape.reset()
@@ -627,8 +658,10 @@ class CkgDisplayGroup:
                 else:
                     shape.draw()
 
-    def update(self, fps):
+    def update(self, **keywords):
         """Increments internal count, makes group visible when appropriate."""
+
+        fps = keywords['fps']
         
         if self.visible:
             # Set triggers to be sent
@@ -642,11 +675,11 @@ class CkgDisplayGroup:
         # Increment count and set flags for the next frame
         self._count += 1
         self.old_visible = self.visible
-        if (self._disp_start * fps) <= self._count < (self._disp_stop * fps):
+        if (self._start * fps) <= self._count < (self._stop * fps):
             self.visible = True
         else:
             self.visible = False
-        if self._count >= (self._end_point * fps):
+        if self._count >= (self._end * fps):
             self.over = True
         else:
             self.over = False
@@ -678,7 +711,81 @@ class CkgDisplayGroup:
             new_shape = CheckerBoard()
             new_shape.load(shape_el)
             self.shapes.append(new_shape)
+
+class CkgWaitScreen(CkgDisplayGroup):
+    """Dummy display group, waits for user input to proceed."""
+
+    DEFAULTS = {'g_keys': (pyglet.window.key.SPACE,),
+                'r_keys': (pyglet.window.key.NUM_ENTER,
+                           pyglet.window.key.ENTER),
+                'res': CkgProj.DEFAULTS['res'],
+                'g_info': "the experiment will start soon",
+                'r_info': "press enter when ready",
+                'font_color': (0, 0, 0, 255),
+                'font_size': 16}
+
+    def __init__(self, **keywords):
+        """Create an informative waitscreen that proceeds after user input."""
+        for kw in self.__class__.DEFAULTS.keys():
+            if kw in keywords.keys():
+                setattr(self, kw, keywords[kw])
+            else:
+                setattr(self, kw, self.__class__.DEFAULTS[kw])
+        self.g_label = pyglet.text.Label(self.g_info,
+                                         font_name=SANS_SERIF,
+                                         font_size=self.font_size,
+                                         color=self.font_color,
+                                         bold=True,
+                                         x=self.res[0]//2,
+                                         y=self.res[1]//8,
+                                         anchor_x='center',
+                                         anchor_y='center')
+        self.r_label = pyglet.text.Label(self.r_info,
+                                         font_name=SANS_SERIF,
+                                         font_size=self.font_size,
+                                         color=self.font_color,
+                                         bold=True,
+                                         x=self.res[0]//2,
+                                         y=self.res[1]//8,
+                                         anchor_x='center',
+                                         anchor_y='center')
+        self.reset()
+
+    def __setattr__(self, name, value):
+        self.__dict__[name] = value
+
+    def duration(self):
+        """Returns zero since wait times are arbitrary."""
+        return to_decimal(0)
+
+    def reset(self):
+        """Resets some flags."""
+        self.ready = False
+        self.over = False
+
+    def draw(self):
+        """Draw informative text."""
+        if not self.ready:
+            self.r_label.draw()
+        else:
+            self.g_label.draw()
+
+    def update(self, **keywords):
+        """Checks for keypress, sends signal upon end."""
         
+        keystates = keywords['keystates']
+
+        if self.r_keys == None:
+            if max([keystates[key] for key in self.g_keys]):
+                self.ready = True
+                self.over = True
+        elif not self.ready:
+            if max([keystates[key] for key in self.r_keys]):
+                self.ready = True
+        else:
+            if max([keystates[key] for key in self.g_keys]):
+                self.over = True
+
 class CheckerShape:
     # Abstract class, to be implemented.
     pass
