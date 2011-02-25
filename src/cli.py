@@ -833,8 +833,21 @@ class CkgCmd(cmd.Cmd):
 
         if args.eyetrack and eyetracking.available:
             if not eyetracking.is_calibrated():
-                print "subject not yet calibrated"
-                return
+                print "subject not yet calibrated, please calibrate first"
+                print "path to calibration file (leave empty for GUI tool):"
+                calpath = raw_input().strip().strip('"\'')
+                if len(calpath) == 0:
+                    calpath = None
+                    if eyetracking.VET.VideoSourceType == 0:
+                        # Select default source if none has been selected
+                        eyetracking.select_source()
+                try:
+                    eyetracking.calibrate(calpath)
+                except eyetracking.EyetrackingError:
+                    print "error:", str(sys.exc_value)
+                    return
+                if len(path) > 0:
+                    print "calibration file successfully loaded"
 
         try:
             self.cur_proj.display(fullscreen=args.fullscreen,
@@ -948,13 +961,10 @@ class CkgCmd(cmd.Cmd):
             return
         path = line.strip().strip('"\'') 
         if len(path) == 0:
-            print "path to calibration file (leave empty for GUI tool):"
-            path = raw_input().strip().strip('"\'')
-            if len(path) == 0:
-                path = None
-                if eyetracking.VET.VideoSourceType == 0:
-                    # Select default source if none has been selected
-                    eyetracking.select_source()
+            path = None
+            if eyetracking.VET.VideoSourceType == 0:
+                # Select default source if none has been selected
+                eyetracking.select_source()
         try:
             eyetracking.calibrate(path)
         except eyetracking.EyetrackingError:
