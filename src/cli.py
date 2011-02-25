@@ -831,6 +831,11 @@ class CkgCmd(cmd.Cmd):
                     print "error:", str(sys.exc_value)
                     print "continuing..."
 
+        if args.eyetrack and eyetracking.available:
+            if not eyetracking.is_calibrated():
+                print "subject not yet calibrated"
+                return
+
         try:
             self.cur_proj.display(fullscreen=args.fullscreen,
                                   logtime=args.logtime,
@@ -954,6 +959,9 @@ class CkgCmd(cmd.Cmd):
             eyetracking.calibrate(path)
         except eyetracking.EyetrackingError:
             print "error:", str(sys.exc_value)
+            return
+        if len(path) > 0:
+            print "calibration file successfully loaded"
         
     def do_quit(self, line):
         """Quits the program."""
