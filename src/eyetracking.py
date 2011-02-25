@@ -80,6 +80,12 @@ if available:
                 msg = 'file could not be loaded'
                 raise EyetrackingError(msg)
 
+    def is_calibrated():
+        if VET.CalibrationStatus()[0] != 0:
+            return True
+        else:
+            return False
+
     def start():
         """Start tracking the eye."""
         if VET.CalibrationStatus()[0] == 0:
