@@ -943,10 +943,13 @@ class CkgCmd(cmd.Cmd):
             return
         path = line.strip().strip('"\'') 
         if len(path) == 0:
-            path = None
-            if eyetracking.VET.VideoSourceType == 0:
-                # Select default source if none has been selected
-                eyetracking.select_source()
+            print "path to calibration file (leave empty for GUI tool):"
+            path = raw_input().strip().strip('"\'')
+            if len(path) == 0:
+                path = None
+                if eyetracking.VET.VideoSourceType == 0:
+                    # Select default source if none has been selected
+                    eyetracking.select_source()
         try:
             eyetracking.calibrate(path)
         except eyetracking.EyetrackingError:
