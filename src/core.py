@@ -15,6 +15,8 @@ CheckerBoard -- A (distorted) checkerboard pattern, can color-flip.
 import os
 import sys
 import re
+import csv
+import itertools
 from xml.dom import minidom
 
 import pyglet
@@ -254,6 +256,27 @@ class CkgProj:
         self._dirty = False
 
         return path
+
+    def blockgen(self, length, path=None, folder=True, **flags):
+        """Generates randomized experimental blocks from display groups.
+        Each block is saved as a CSV file.
+
+        length -- number of repeated trials within a block
+
+        path -- directory in which experimental blocks will be saved
+
+        folder -- blocks will be saved in a containing folder if true
+
+        flags -- flags to be issued to the display command when block file
+        is run
+
+        """
+
+        if path == None:
+            path = os.getcwd()
+
+        for order in itertools.permutations(range(len(self.groups))):
+            pass
 
     def display(self, fullscreen=False, logtime=False, logdur=False,
                 sigser=False, sigpar=False, phototest=False,
