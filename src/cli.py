@@ -833,16 +833,8 @@ class CkgCmd(cmd.Cmd):
 
         if args.eyetrack and eyetracking.available:
             if not eyetracking.is_calibrated():
-                print "subject not yet calibrated, please calibrate first"
-                print "path to calibration file (leave empty for GUI tool):"
-                calpath = raw_input().strip().strip('"\'')
-                if len(calpath) == 0:
-                    calpath = None
-                    if eyetracking.VET.VideoSourceType == 0:
-                        # Select default source if none has been selected
-                        eyetracking.select_source()
                 try:
-                    eyetracking.calibrate(calpath)
+                    self.do_calibrate('',True)
                 except eyetracking.EyetrackingError:
                     print "error:", str(sys.exc_value)
                     return
@@ -954,12 +946,16 @@ class CkgCmd(cmd.Cmd):
 
         print "Export done."
 
-    def do_calibrate(self, line):
+    def do_calibrate(self, line, query=False):
         """Calibrate subject for eyetracking, or load a calibration file."""
         if not eyetracking.available:
             print "error: eyetracking functionality not available"
             return
-        path = line.strip().strip('"\'') 
+        if query:
+            print "path to calibration file (leave empty for GUI tool):"
+            path = raw_input().strip().strip('"\'')
+        else:
+            path = line.strip().strip('"\'')
         if len(path) == 0:
             path = None
             if eyetracking.VET.VideoSourceType == 0:
@@ -968,8 +964,11 @@ class CkgCmd(cmd.Cmd):
         try:
             eyetracking.calibrate(path)
         except eyetracking.EyetrackingError:
-            print "error:", str(sys.exc_value)
-            return
+            if query:
+                raise
+            else:
+                print "error:", str(sys.exc_value)
+                return
         if len(path) > 0:
             print "calibration file successfully loaded"
         
