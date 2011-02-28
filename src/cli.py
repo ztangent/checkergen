@@ -946,6 +946,62 @@ class CkgCmd(cmd.Cmd):
 
         print "Export done."
 
+    mkblks_parser = CmdParser(add_help=False, prog='mkblks',
+                              description='''Generates randomized experimental
+                                             blocks from display groups and
+                                             saves each as a CSV file.''')
+    mkblks_parser.add_argument('-n','--nofolder',
+                               dest='folder', action='store_false',
+                               help='''force block files not to be saved in 
+                                       a containing folder''')
+    mkblks_parser.add_argument('-d','--dir', default=os.getcwd(),
+                               help='''where to save block files
+                                       (default: current working directory)''')
+    mkblks_parser.add_argument('length', type=int,
+                               help='''no. of repeated trials in a block''')
+    mkblks_parser.add_argument('flags', nargs='?',
+                               help='''flags passed to the display command
+                                       that should be used when the block
+                                       file is run (enclose in quotes and use
+                                       '+' or '++' in place of '-' or '--')''')
+
+    def help_mkblks(self):
+        self.__class__.mkblks_parser.print_help()
+
+    def do_mkblks(self, line):
+        """Generates randomized experimental blocks from display groups."""
+        if self.cur_proj == None:
+            print 'please create or open a project first'
+            return
+
+        try:
+            args = self.__class__.mkblks_parser.parse_args(shlex.split(line))
+        except CmdParserError:
+            print "error:", str(sys.exc_value)
+            self.__class__.mkblks_parser.print_usage()
+            return
+
+        args.flags = args.flags.replace('+','-')
+        try:
+            disp_args = self.__class__.display_parser.\
+                parse_args(shlex.split(args.flags))
+        except CmdParserError:
+            print "error: invalid flags to display command"
+            print str(sys.exc_value)
+            self.__class__.display_parser.print_usage()
+            return        
+
+        try:
+            self.cur_proj.mkblks(args.length,
+                                 path=args.dir,
+                                 folder=args.folder,
+                                 flags=args.flags)
+        except IOError:
+            print "error:", str(sys.exc_value)
+            return
+
+        print "Experimental blocks generated."
+
     def do_calibrate(self, line, query=False):
         """Calibrate subject for eyetracking, or load a calibration file."""
         if not eyetracking.available:

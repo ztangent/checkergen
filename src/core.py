@@ -31,6 +31,8 @@ XML_NAMESPACE = 'http://github.com/ZOMGxuan/checkergen'
 MAX_EXPORT_FRAMES = 100000
 PRERENDER_TO_TEXTURE = False
 EXPORT_FMTS = ['png']
+EXPORT_DIR_SUFFIX = '-anim'
+BLOCK_DIR_SUFFIX = '-blks'
 FIX_POS = (0, 0)
 FIX_RANGE = (20, 20)
 SANS_SERIF = ('Helvetica', 'Arial', 'FreeSans')
@@ -257,7 +259,7 @@ class CkgProj:
 
         return path
 
-    def blockgen(self, length, path=None, folder=True, **flags):
+    def mkblks(self, length, path=None, folder=True, flags=''):
         """Generates randomized experimental blocks from display groups.
         Each block is saved as a CSV file.
 
@@ -267,16 +269,29 @@ class CkgProj:
 
         folder -- blocks will be saved in a containing folder if true
 
-        flags -- flags to be issued to the display command when block file
-        is run
+        flags -- string of flags to be issued to the display command when
+        block file is run
 
         """
 
         if path == None:
             path = os.getcwd()
 
-        for order in itertools.permutations(range(len(self.groups))):
-            pass
+        if folder:
+            path = os.path.join(path, self.name + BLOCK_DIR_SUFFIX)
+            if not os.path.isdir(path):
+                os.mkdir(path)
+
+        group_ids = range(len(self.groups))
+        for n, sequence in enumerate(itertools.permutations(group_ids)):
+            blkname = 'block{0}.csv'.format(repr(n).zfill(numdigits(length)))
+            blkfile = open(os.path.join(path, blkname), 'wb')
+            blkwriter = csv.writer(blkfile, dialect='excel-tab')
+            blkwriter.writerow(['checkergen experimental block file'])
+            blkwriter.writerow(['flags:', flags])
+            blkwriter.writerow(['repeats:', length])
+            blkwriter.writerow(['sequence:'] + list(sequence))
+            blkfile.close()
 
     def display(self, fullscreen=False, logtime=False, logdur=False,
                 sigser=False, sigpar=False, phototest=False,
@@ -560,7 +575,8 @@ class CkgProj:
 
         # Create folder to store images if necessary
         if folder:
-            export_dir = os.path.join(export_dir, self.name)
+            export_dir = os.path.join(export_dir,
+                                      self.name + EXPORT_DIR_SUFFIX)
             if not os.path.isdir(export_dir):
                 os.mkdir(export_dir)
 
