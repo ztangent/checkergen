@@ -14,7 +14,7 @@ GROUP_STOP = 16  # 0b00010000
 FIX_START = 4    # 0b00000100
 FIX_STOP = 2     # 0b00000010
 
-FLIP_SIG_PER = 1
+FLIP_SIG_PER = 10
 
 available = {'serial': False, 'parallel': False}
 
