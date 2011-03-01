@@ -423,6 +423,7 @@ class CkgProj:
 
             # Assume no change to group visibility
             flipped = 0
+            signals.set_null()
  
             # Manage groups when they are on_screen
             if groups_visible:
@@ -452,7 +453,7 @@ class CkgProj:
                         cur_group.reset()
                         if not isinstance(cur_group, CkgWaitScreen):
                             if cur_group.visible:
-                                flip_id = self.groups.index(cur_group)
+                                flip_id = cur_id
                                 flipped = 1
                 # Draw and then update group
                 if cur_group != None:
@@ -467,8 +468,6 @@ class CkgProj:
                     test_rect.draw()
             elif flipped == -1:
                 signals.set_group_stop(flip_id)
-            else:
-                signals.set_null()
 
             # Draw normal cross color if fixating, other color if not
             if eyetrack:
@@ -685,6 +684,7 @@ class CkgDisplayGroup:
             self.visible = False
             if self._end == 0:
                 self.over = True
+        self._flip_count = [0] * len(self.shapes)
         for shape in self.shapes:
             shape.reset()
 
@@ -698,15 +698,29 @@ class CkgDisplayGroup:
                     shape.draw()
 
     def update(self, **keywords):
-        """Increments internal count, makes group visible when appropriate."""
+        """Increments internal count, makes group visible when appropriate.
+
+        fps -- refresh rate of the display in frames per second
+
+        flip_sig_per -- number of shape colour reversals that have to occur
+        for a unique signal to be sent for that shape
+
+        """
 
         fps = keywords['fps']
+        if 'flip_sig_per' in keywords.keys():
+            flip_sig_per = keywords['flip_sig_per']
+        else:
+            flip_sig_per = signals.FLIP_SIG_PER
         
         if self.visible:
             # Set triggers to be sent
             for n, shape in enumerate(self.shapes):
                 if shape.flipped:
-                    signals.set_board_flip(n)
+                    self._flip_count[n] += 1
+                    if self._flip_count[n] >= flip_sig_per:
+                        signals.set_board_flip(n)
+                        self._flip_count[n] = 0
             # Update contained shapes
             for shape in self.shapes:
                 shape.update(fps)

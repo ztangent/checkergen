@@ -3,14 +3,18 @@ parallel ports."""
 
 SERPORT = None
 PARPORT = None
+
 STATE = None
 OLD_STATE = None
+
 USER_START = 128 # 0b10000000
 BOARD_FLIP = 64  # 0b01000000
 GROUP_START = 32 # 0b00100000
 GROUP_STOP = 16  # 0b00010000
 FIX_START = 4    # 0b00000100
 FIX_STOP = 2     # 0b00000010
+
+FLIP_SIG_PER = 1
 
 available = {'serial': False, 'parallel': False}
 
