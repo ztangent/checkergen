@@ -277,6 +277,10 @@ class CkgProj:
         if path == None:
             path = os.getcwd()
 
+        if not os.path.isdir(path):
+            msg = "specified directory does not exist"
+            raise IOError(msg)
+
         if folder:
             path = os.path.join(path, self.name + BLOCK_DIR_SUFFIX)
             if not os.path.isdir(path):
@@ -292,6 +296,29 @@ class CkgProj:
             blkwriter.writerow(['repeats:', length])
             blkwriter.writerow(['sequence:'] + list(sequence))
             blkfile.close()
+
+    @staticmethod
+    def readblk(path):
+        """Reads the information in a block file and returns it in a dict."""
+
+        if not os.path.isfile(path):
+            msg = "specified file does not exist"
+            raise IOError(msg)
+
+        blkdict = dict()
+        blkfile = open(path, 'rb')
+        blkreader = csv.reader(blkfile, dialect='excel-tab')
+        for n, row in enumerate(blkreader):
+            if n == 1:
+                blkdict['flags'] = row[1]
+            elif n == 2:
+                repeats = int(row[1])
+            elif n == 3:
+                sequence = row[1:]
+                sequence = [int(i) for i in sequence]
+        blkfile.close()
+        blkdict['idlist'] = ([-1] + sequence) * repeats
+        return blkdict
 
     def display(self, fullscreen=False, logtime=False, logdur=False,
                 sigser=False, sigpar=False, phototest=False,

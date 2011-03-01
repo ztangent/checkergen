@@ -747,6 +747,9 @@ class CkgCmd(cmd.Cmd):
     display_parser = CmdParser(add_help=False, prog='display',
                                description='''Displays the animation in a
                                               window or in fullscreen.''')
+    display_parser.add_argument('-b', '--block', metavar='PATH',
+                                help='''read flags and dislay group order from
+                                        specified file, ignore other flags''')
     display_parser.add_argument('-f', '--fullscreen', action='store_true',
                                 help='sets fullscreen mode, ESC to quit')
     display_parser.add_argument('-p', '--priority', metavar='LEVEL',
@@ -774,13 +777,13 @@ class CkgCmd(cmd.Cmd):
                                         when shapes are being displayed''')
     display_parser.add_argument('-et', '--eyetrack', action='store_true',
                                 help='''use eyetracking to ensure that subject
-                                        fixates on the cross in the center''')                  
+                                        fixates on the cross in the center''')
     display_parser.add_argument('-eu', '--etuser', action='store_true',
                                 help='''allow user to select eyetracking video
-                                        source from a dialog''')                  
+                                        source from a dialog''')
     display_parser.add_argument('-ev', '--etvideo', metavar='path',
                                 help='''path (with no spaces) to eyetracking
-                                        video file to be used as the source''')                  
+                                        video file to be used as the source''')
     display_parser.add_argument('idlist', nargs='*', metavar='id', type=int,
                                 help='''list of display groups to be displayed
                                         in the specified order (default: order
@@ -801,6 +804,21 @@ class CkgCmd(cmd.Cmd):
             print "error:", str(sys.exc_value)
             self.__class__.display_parser.print_usage()
             return
+
+        if args.block != None:
+            try:
+                blkdict = core.CkgProj.readblk(args.block)
+                flags = blkdict['flags']
+                try:
+                    args = self.__class__.\
+                        display_parser.parse_args(shlex.split(flags))
+                    args.idlist = blkdict['idlist']
+                except CmdParserError:
+                    print 'error: invalid flags stored in block file'
+                    return
+            except IOError:
+                print "error:", str(sys.exc_value)
+                return
 
         group_queue = []
         if len(args.idlist) > 0:
@@ -959,7 +977,7 @@ class CkgCmd(cmd.Cmd):
                                        (default: current working directory)''')
     mkblks_parser.add_argument('length', type=int,
                                help='''no. of repeated trials in a block''')
-    mkblks_parser.add_argument('flags', nargs='?',
+    mkblks_parser.add_argument('flags', nargs='?', default='',
                                help='''flags passed to the display command
                                        that should be used when the block
                                        file is run (enclose in quotes and use
