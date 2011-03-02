@@ -321,7 +321,7 @@ class CkgProj:
         return blkdict
 
     def display(self, fullscreen=False, logtime=False, logdur=False,
-                sigser=False, sigpar=False, phototest=False,
+                sigser=False, sigpar=False, fpbs=0, phototest=False,
                 eyetrack=False, etuser=False, etvideo=None, group_queue=[]):
         """Displays the project animation on the screen.
 
@@ -335,6 +335,9 @@ class CkgProj:
         sigser -- send signals through serial port when each group is shown
 
         sigpar -- send signals through parallel port when each group is shown
+
+        fpbs -- flips per board signal, i.e. number of shape color reversals
+        (flips) that occur for a unique signal to be sent for that shape
 
         phototest -- draw white rectangle in topleft corner when each group is
         shown for photodiode to detect
@@ -487,7 +490,9 @@ class CkgProj:
                 # Draw and then update group
                 if cur_group != None:
                     cur_group.draw()
-                    cur_group.update(fps=self.fps, keystates=keystates)
+                    cur_group.update(fps=self.fps,
+                                     fpbs=fpbs,
+                                     keystates=keystates)
 
             # Send signals upon group visibility change
             if flipped == 1:
@@ -658,7 +663,7 @@ class CkgProj:
                 # Draw and then update group
                 if cur_group != None:
                     cur_group.draw()
-                    cur_group.update(fps=self.fps)
+                    cur_group.update(fps=self.fps, fpbs=0)
             # Draw fixation cross based on current count
             if (count % (sum(self.cross_times) * self.fps) 
                 < self.cross_times[0] * self.fps):
@@ -749,23 +754,21 @@ class CkgDisplayGroup:
 
         fps -- refresh rate of the display in frames per second
 
-        flip_sig_per -- number of shape colour reversals that have to occur
-        for a unique signal to be sent for that shape
+        fpbs -- flips per board signal, i.e. number of shape color reversals
+        (flips) that occur for a unique signal to be sent for that shape
 
         """
 
         fps = keywords['fps']
-        if 'flip_sig_per' in keywords.keys():
-            flip_sig_per = keywords['flip_sig_per']
-        else:
-            flip_sig_per = signals.FLIP_SIG_PER
-        
+        fpbs = keywords['fpbs']
+                
         if self.visible:
             # Set triggers to be sent
-            for n, shape in enumerate(self.shapes):
-                if shape.flipped:
-                    self._flip_count[n] += 1
-                    if self._flip_count[n] >= flip_sig_per:
+            if fpbs > 0:
+                for n, shape in enumerate(self.shapes):
+                    if shape.flipped:
+                        self._flip_count[n] += 1
+                    if self._flip_count[n] >= fpbs:
                         signals.set_board_flip(n)
                         self._flip_count[n] = 0
             # Update contained shapes

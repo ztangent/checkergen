@@ -775,6 +775,11 @@ class CkgCmd(cmd.Cmd):
     display_parser.add_argument('-sp', '--sigpar', action='store_true',
                                 help='''send signals through the parallel port 
                                         when shapes are being displayed''')
+    display_parser.add_argument('-fpbs', metavar='N', type=int, default=0,
+                                help='''unique signal corresponding to a
+                                        checkerboard is sent after the board
+                                        undergoes N color reversals (flips),
+                                        set to 0 to disable''')
     display_parser.add_argument('-et', '--eyetrack', action='store_true',
                                 help='''use eyetracking to ensure that subject
                                         fixates on the cross in the center''')
@@ -865,6 +870,7 @@ class CkgCmd(cmd.Cmd):
                                   logdur=args.logdur,
                                   sigser=args.sigser,
                                   sigpar=args.sigpar,
+                                  fpbs=args.fpbs,
                                   phototest=args.phototest,
                                   eyetrack=args.eyetrack,
                                   etuser=args.etuser,

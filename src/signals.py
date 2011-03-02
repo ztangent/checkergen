@@ -17,8 +17,6 @@ GROUP_START = 60 # 0b00111100
 GROUP_STOP = 40  # 0b00101000
 BOARD_FLIP = 10  # 0b00001010
 
-FLIP_SIG_PER = 10
-
 available = {'serial': False, 'parallel': False}
 
 try:
