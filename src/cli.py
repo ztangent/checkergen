@@ -1032,7 +1032,7 @@ class CkgCmd(cmd.Cmd):
             path = line.strip().strip('"\'')
         if len(path) == 0:
             path = None
-            if eyetracking.VET.VideoSourceType == 0:
+            if not eyetracking.is_source_ready():
                 # Select default source if none has been selected
                 eyetracking.select_source()
         try:

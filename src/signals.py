@@ -7,12 +7,15 @@ PARPORT = None
 STATE = None
 OLD_STATE = None
 
+# Arranged in order of decreasing priority
 USER_START = 128 # 0b10000000
-BOARD_FLIP = 64  # 0b01000000
-GROUP_START = 32 # 0b00100000
-GROUP_STOP = 16  # 0b00010000
-FIX_START = 4    # 0b00000100
-FIX_STOP = 2     # 0b00000010
+FIX_START = 99   # 0b01100011
+TRACK_START = 98 # 0b01100010
+TRACK_STOP = 89  # 0b01011001
+FIX_STOP = 88    # 0b01011000
+GROUP_START = 60 # 0b00111100
+GROUP_STOP = 40  # 0b00101000
+BOARD_FLIP = 10  # 0b00001010
 
 FLIP_SIG_PER = 10
 
@@ -87,11 +90,12 @@ def init(sigser, sigpar):
     if sigpar:
         par_init()
 
-def set_state(state):
+def set_state(NEW_STATE):
     global STATE
     global OLD_STATE
-    OLD_STATE = STATE
-    STATE = state
+    if NEW_STATE == None or NEW_STATE >= STATE:
+        OLD_STATE = STATE
+        STATE = NEW_STATE
 
 def set_board_flip(board_id):
     set_state(BOARD_FLIP + board_id)
@@ -110,6 +114,12 @@ def set_fix_start():
 
 def set_fix_stop():
     set_state(FIX_STOP)
+
+def set_track_start():
+    set_state(TRACK_START)
+
+def set_track_stop():
+    set_state(TRACK_STOP)
 
 def set_null():
     set_state(None)

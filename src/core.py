@@ -396,6 +396,8 @@ class CkgProj:
                 raise NotImplementedError(msg)
             fixating = False
             old_fixating = False
+            tracking = False
+            old_tracking = False
             eyetracking.select_source(etuser, etvideo)
             eyetracking.start()
         
@@ -496,24 +498,42 @@ class CkgProj:
             elif flipped == -1:
                 signals.set_group_stop(flip_id)
 
-            # Draw normal cross color if fixating, other color if not
             if eyetrack:
+                # First check if tracking and send signals
+                old_tracking = tracking
+                tracking = eyetracking.is_tracking()
+                if tracking:
+                    if not old_tracking:
+                        # Send signal if tracking starts
+                        signals.set_track_start()
+                else:
+                    if old_tracking:
+                        # Send signal if tracking stops
+                        signals.set_track_stop()
+
+                # Next check for fixation
                 old_fixating = fixating
                 fixating = eyetracking.fixating(FIX_POS, FIX_RANGE)
                 if fixating:
+                    # Draw normal cross color if fixating
                     fix_crosses[0].draw()
                     if not old_fixating:
+                        # Send signal if fixation starts
                         signals.set_fix_start()
                 else:
+                    # Draw alternative cross color if not fixating
                     fix_crosses[1].draw()
                     if old_fixating:
+                        # Send signal if fixation stops
                         signals.set_fix_stop()
+
             # Change cross color based on time if eyetracking is not enabled
-            elif (count % (sum(self.cross_times) * self.fps) 
-                  < self.cross_times[0] * self.fps):
-                fix_crosses[0].draw()
-            else:
-                fix_crosses[1].draw()                
+            if not eyetrack:
+                if (count % (sum(self.cross_times) * self.fps) 
+                    < self.cross_times[0] * self.fps):
+                    fix_crosses[0].draw()
+                else:
+                    fix_crosses[1].draw()                
 
             # Increment count and set whether groups should be shown
             if not isinstance(cur_group, CkgWaitScreen):

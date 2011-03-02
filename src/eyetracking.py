@@ -45,6 +45,13 @@ if available:
                 msg = 'could not select video source'
                 raise EyetrackingError(msg)
 
+    def is_source_ready():
+        """Returns true if a video source has been selected."""
+        if VET.VideoSourceType == 0:
+            return False
+        else:
+            return True
+
     def show_camera():
         VET.CreateCameraScreen(0)
 
@@ -97,6 +104,10 @@ if available:
     def stop():
         """Stop tracking the eye."""
         VET.StopTracking()
+
+    def is_tracking():
+        """Returns true if the eye is being tracked."""
+        return bool(VET.Tracking)
 
     def fixating(fix_pos, fix_range):
         """Checks whether subject is fixating on specificied location.
