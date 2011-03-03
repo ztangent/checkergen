@@ -1053,7 +1053,43 @@ class CkgCmd(cmd.Cmd):
                 return
         if len(path) > 0:
             print "calibration file successfully loaded"
-        
+
+    etsetup_parser = CmdParser(add_help=False, prog='etsetup',
+                               description='''Set various eyetracking
+                                              parameters.''')
+    etsetup_parser.add_argument('-fp', '--fixperiod', type=int, metavar='MS',
+                                help='''time in milliseconds subject
+                                        has to stare at the same spot
+                                        for fixation to be detected''')
+    etsetup_parser.add_argument('-fr', '--fixrange', type=float, metavar='MM',
+                                help='''distance in mm beyond which the
+                                        eye position cannot change for
+                                        a fixation to be detected''')
+    etsetup_parser.add_argument('-s', '--size', metavar='WIDTH,HEIGHT',
+                                action=store_tuple(2, ',', float),
+                                help='physical screen dimensions in mm')
+    etsetup_parser.add_argument('-vd', '--viewdist', type=int, metavar='MM',
+                                help='''viewing distance between subject's
+                                        eyes and the screen''')
+
+    def help_etsetup(self):
+        self.__class__.etsetup_parser.print_help()
+
+    def do_etsetup(self, line):
+        try:
+            args = self.__class__.etsetup_parser.parse_args(shlex.split(line))
+        except CmdParserError:
+            print "error:", str(sys.exc_value)
+            self.__class__.etsetup_parser.print_usage()
+            return
+        try:
+            eyetracking.setup(viewing_distance=args.viewdist,
+                              screen_dims=args.size,
+                              fixation_period=args.fixperiod,
+                              fixation_range=args.fixrange)
+        except eyetracking.EyetrackingError:
+            print "error:", str(sys.exc_value)
+       
     def do_quit(self, line):
         """Quits the program."""
         if self.save_check():
