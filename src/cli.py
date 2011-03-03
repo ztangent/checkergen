@@ -1033,7 +1033,11 @@ class CkgCmd(cmd.Cmd):
             return
         if query:
             print "path to calibration file (leave empty for GUI tool):"
-            path = raw_input().strip().strip('"\'')
+            try:
+                path = raw_input().strip().strip('"\'')
+            except EOFError:
+                msg = "calibration cancelled"
+                raise eyetracking.EyetrackingError(msg)
         else:
             path = line.strip().strip('"\'')
         if len(path) == 0:
@@ -1057,6 +1061,10 @@ class CkgCmd(cmd.Cmd):
         if self.save_check():
             return
         return True
+
+    def help_EOF(self):
+        print "Typing {0} issues this command, which quits the program."\
+            .format(CMD_EOF_STRING)
 
     def do_EOF(self, line):
         """Typing Ctrl-D issues this command, which quits the program."""
