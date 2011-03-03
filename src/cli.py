@@ -861,8 +861,6 @@ class CkgCmd(cmd.Cmd):
                 except eyetracking.EyetrackingError:
                     print "error:", str(sys.exc_value)
                     return
-                if len(path) > 0:
-                    print "calibration file successfully loaded"
 
         try:
             self.cur_proj.display(fullscreen=args.fullscreen,

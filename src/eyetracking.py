@@ -21,6 +21,10 @@ class EyetrackingError(Exception):
 if available:
     # Try dispatching object, else unavailable
     try:
+        from win32com.client import gencache
+        # Ensure makepy module is generated
+        gencache.EnsureModule('{248DBF0C-A874-4032-82CE-DC5B307BB6E7}',
+                              0, 3, 11)
         VET = win32com.client.Dispatch(ProgID)
         DummyResultSet = win32com.client.Record(RecordName, VET)
     except:
@@ -60,14 +64,15 @@ if available:
     def quit_camera():
         VET.DestroyCameraScreen()
         
-    def setup(viewing_distance, screen_dims,
-              fixation_period = None, fixation_range = None):
+    def setup(viewing_distance=None, screen_dims=None,
+              fixation_period=None, fixation_range=None):
         """Calibrates the display and sets fixation properties."""
-        if len(screen_dims) != 2:
-            msg = 'screen_dims must be a 2-tuple'
-            raise ValueError(msg)
-        VET.SetDeviceParameters(CRS.deUser, viewing_distance,
-                                screen_dims[0], screen_dims[1])
+        if viewing_distance != None and screen_dims != None:
+            if len(screen_dims) != 2:
+                msg = 'screen_dims must be a 2-tuple'
+                raise ValueError(msg)
+            VET.SetDeviceParameters(CRS.deUser, viewing_distance,
+                                    screen_dims[0], screen_dims[1])
         if fixation_period != None:
             VET.FixationPeriod = fixation_period
         if fixation_range != None:
@@ -109,7 +114,7 @@ if available:
 
     def is_tracked():
         """Returns true if the eye is being tracked."""
-        data = VET.GetLatestEyePosition(results)[1]
+        data = VET.GetLatestEyePosition(DummyResultSet)[1]
         return data.Tracked
 
     def is_fixated(fix_pos, fix_range):

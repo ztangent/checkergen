@@ -546,6 +546,8 @@ class CkgProj:
                 if not cur_fix_fail and cur_group.visible and\
                     (tracked and not fixated):
                     cur_fix_fail = True
+                    if len(fix_fail_queue) == 0 and trybreak > 0:
+                        group_queue.append(CkgWaitScreen())
                     fix_fail_queue.append(self.groups.index(cur_group))
                     # Append failed group to group queue
                     if tryagain > 0:
