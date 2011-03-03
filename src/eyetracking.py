@@ -34,6 +34,8 @@ if available:
 
     # For easier access to constants and standardization with MATLAB interface
     CRS = win32com.client.constants
+    
+    lastgoodstamp = 0
 
     def select_source(user_select = False, path = None):
         if user_select:
@@ -102,9 +104,11 @@ if available:
 
     def start():
         """Start tracking the eye."""
+        global lastgoodstamp
         if VET.CalibrationStatus()[0] == 0:
             msg = 'subject not yet calibrated'
             raise EyetrackingError(msg)
+        lastgoodstamp = 0
         VET.ClearDataBuffer()
         VET.StartTracking()
 
@@ -117,7 +121,7 @@ if available:
         data = VET.GetLatestEyePosition(DummyResultSet)[1]
         return data.Tracked
 
-    def is_fixated(fix_pos, fix_range):
+    def is_fixated(fix_pos, fix_range, fix_period):
         """Checks whether subject is fixating on specificied location.
 
         fix_pos -- (x, y) position of desired fixation location in mm
@@ -127,12 +131,17 @@ if available:
         which fixation is allowed (in mm)
 
         """
+        global lastgoodstamp
         if VET.CalibrationStatus()[0] == 0:
             msg = 'subject not yet calibrated'
             raise EyetrackingError(msg)
-        if VET.FixationLocation.Fixation:
-            xdiff = abs(VET.FixationLocation.Xposition - fix_pos[0])
-            ydiff = abs(VET.FixationLocation.Yposition - fix_pos[1])
-            if (xdiff <= fix_range[0]/2) and (ydiff <= fix_range[1]/2):
+        data = VET.GetLatestEyePosition(DummyResultSet)[1]
+        pos = (data.ScreenPositionXmm, data.ScreenPositionYmm)
+        diff = [abs(p - fp) for p, fp in zip(pos, fix_pos)]
+        if (data.Timestamp - lastgoodstamp) <= fix_period:
+                return True
+        if data.Tracked == True:
+            if diff[0] < fix_range[0] and diff[1] < fix_range[1]:
+                lastgoodstamp = data.TimeStamp
                 return True
         return False

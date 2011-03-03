@@ -35,6 +35,7 @@ EXPORT_DIR_SUFFIX = '-anim'
 BLOCK_DIR_SUFFIX = '-blks'
 FIX_POS = (0, 0)
 FIX_RANGE = (20, 20)
+FIX_PER = 350
 SANS_SERIF = ('Helvetica', 'Arial', 'FreeSans')
 
 def xml_get(parent, namespace, name, index=0):
@@ -528,7 +529,7 @@ class CkgProj:
 
                 # Next check for fixation
                 old_fixated = fixated
-                fixated = eyetracking.is_fixated(FIX_POS, FIX_RANGE)
+                fixated = eyetracking.is_fixated(FIX_POS, FIX_RANGE, FIX_PER)
                 if fixated:
                     # Draw normal cross color if fixating
                     fix_crosses[0].draw()
