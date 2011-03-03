@@ -840,7 +840,7 @@ class CkgWaitScreen(CkgDisplayGroup):
                                          color=self.font_color,
                                          bold=True,
                                          x=self.res[0]//2,
-                                         y=self.res[1]//8,
+                                         y=self.res[1]*16//30,
                                          anchor_x='center',
                                          anchor_y='center')
         self.r_label = pyglet.text.Label(self.r_info,
@@ -849,7 +849,7 @@ class CkgWaitScreen(CkgDisplayGroup):
                                          color=self.font_color,
                                          bold=True,
                                          x=self.res[0]//2,
-                                         y=self.res[1]//8,
+                                         y=self.res[1]*16//30,
                                          anchor_x='center',
                                          anchor_y='center')
         self.reset()
