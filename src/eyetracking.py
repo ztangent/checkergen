@@ -10,6 +10,7 @@ except ImportError:
 
 # COM ProgID of the Toolbox
 ProgID = "crsVET.VideoEyeTracker"
+RecordName = "etResultSet"
 # VET application object
 VET = None
 
@@ -21,6 +22,7 @@ if available:
     # Try dispatching object, else unavailable
     try:
         VET = win32com.client.Dispatch(ProgID)
+        DummyResultSet = win32com.client.Record(RecordName, VET)
     except:
         available = False
 
@@ -105,11 +107,12 @@ if available:
         """Stop tracking the eye."""
         VET.StopTracking()
 
-    def is_tracking():
+    def is_tracked():
         """Returns true if the eye is being tracked."""
-        return bool(VET.Tracking)
+        data = VET.GetLatestEyePosition(results)[1]
+        return data.Tracked
 
-    def fixating(fix_pos, fix_range):
+    def is_fixated(fix_pos, fix_range):
         """Checks whether subject is fixating on specificied location.
 
         fix_pos -- (x, y) position of desired fixation location in mm

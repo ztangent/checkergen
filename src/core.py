@@ -322,7 +322,8 @@ class CkgProj:
 
     def display(self, fullscreen=False, logtime=False, logdur=False,
                 sigser=False, sigpar=False, fpbs=0, phototest=False,
-                eyetrack=False, etuser=False, etvideo=None, group_queue=[]):
+                eyetrack=False, etuser=False, etvideo=None,
+                tryagain=0, trybreak=0, group_queue=[]):
         """Displays the project animation on the screen.
 
         fullscreen -- animation is displayed fullscreen if true, stretched
@@ -348,6 +349,12 @@ class CkgProj:
         
         etvideo -- optional eyetracking video source file to use instead of
         live feed
+
+        tryagain -- Append groups during which subject failed to fixated up to
+        this number of times to the group queue
+
+        trybreak -- Append a wait screen to the group queue every time
+        after this many groups have been appended to the queue
         
         group_queue -- queue of groups to be displayed, defaults to order of
         groups in project (i.e. groups[0] first, etc.)
@@ -397,10 +404,12 @@ class CkgProj:
             if not eyetracking.available:
                 msg = 'eyetracking functionality not available'
                 raise NotImplementedError(msg)
-            fixating = False
-            old_fixating = False
-            tracking = False
-            old_tracking = False
+            fixated = False
+            old_fixated = False
+            tracked = False
+            old_tracked = False
+            cur_fix_fail = False
+            fix_fail_queue = []
             eyetracking.select_source(etuser, etvideo)
             eyetracking.start()
         
@@ -483,10 +492,11 @@ class CkgProj:
                     else:
                         cur_group = group_queue[cur_id]
                         cur_group.reset()
-                        if not isinstance(cur_group, CkgWaitScreen):
-                            if cur_group.visible:
-                                flip_id = cur_id
-                                flipped = 1
+                        if eyetrack:
+                            cur_fix_fail = False
+                        if cur_group.visible:
+                            flip_id = self.groups.index(cur_group)
+                            flipped = 1
                 # Draw and then update group
                 if cur_group != None:
                     cur_group.draw()
@@ -504,33 +514,49 @@ class CkgProj:
                 signals.set_group_stop(flip_id)
 
             if eyetrack:
-                # First check if tracking and send signals
-                old_tracking = tracking
-                tracking = eyetracking.is_tracking()
-                if tracking:
-                    if not old_tracking:
-                        # Send signal if tracking starts
+                # First check if eye is being tracked and send signals
+                old_tracked = tracked
+                tracked = eyetracking.is_tracked()
+                if tracked:
+                    if not old_tracked:
+                        # Send signal if eye starts being tracked
                         signals.set_track_start()
                 else:
-                    if old_tracking:
-                        # Send signal if tracking stops
+                    if old_tracked:
+                        # Send signal if eye stops being tracked
                         signals.set_track_stop()
 
                 # Next check for fixation
-                old_fixating = fixating
-                fixating = eyetracking.fixating(FIX_POS, FIX_RANGE)
-                if fixating:
+                old_fixated = fixated
+                fixated = eyetracking.is_fixated(FIX_POS, FIX_RANGE)
+                if fixated:
                     # Draw normal cross color if fixating
                     fix_crosses[0].draw()
-                    if not old_fixating:
+                    if not old_fixated:
                         # Send signal if fixation starts
                         signals.set_fix_start()
                 else:
                     # Draw alternative cross color if not fixating
                     fix_crosses[1].draw()
-                    if old_fixating:
+                    if old_fixated:
                         # Send signal if fixation stops
                         signals.set_fix_stop()
+
+                # Take note of which groups in which fixation failed
+                if not cur_fix_fail and cur_group.visible and\
+                    (tracked and not fixated):
+                    cur_fix_fail = True
+                    fix_fail_queue.append(self.groups.index(cur_group))
+                    # Append failed group to group queue
+                    if tryagain > 0:
+                        group_queue.append(cur_group)
+                        groups_stop += cur_group.duration() * self.fps
+                        disp_end += cur_group.duration() * self.fps
+                        # Insert waitscreen every tryagainbreak failed groups
+                        if trybreak > 0:
+                            if len(fix_fail_queue) % trybreak == 0:
+                                group_queue.append(CkgWaitScreen())
+                        tryagain -= 1
 
             # Change cross color based on time if eyetracking is not enabled
             if not eyetrack:
@@ -590,6 +616,10 @@ class CkgProj:
             filename = '{0}.log'.format(self.name)
             with open(filename, 'w') as logfile:
                 logfile.write(logstring)
+
+        # Return list of ids of failed groups
+        if eyetrack:
+            return fix_fail_queue
 
     def export(self, export_dir, export_duration, group_queue=[],
                export_fmt=None, folder=True, force=False):
@@ -863,6 +893,8 @@ class CkgWaitScreen(CkgDisplayGroup):
 
     def reset(self):
         """Resets some flags."""
+        self.visible = False
+        self.old_visible = False
         self.ready = False
         self.over = False
 
