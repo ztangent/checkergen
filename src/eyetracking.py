@@ -130,6 +130,10 @@ if available:
         fix_range -- (width, height) of box surrounding fix_pos within
         which fixation is allowed (in mm)
 
+        fix_period -- duration in milliseconds within which subject is
+        assumed to continue fixating after fixation is detected at a 
+        specific time
+
         """
         global lastgoodstamp
         if VET.CalibrationStatus()[0] == 0:
@@ -138,10 +142,13 @@ if available:
         data = VET.GetLatestEyePosition(DummyResultSet)[1]
         pos = (data.ScreenPositionXmm, data.ScreenPositionYmm)
         diff = [abs(p - fp) for p, fp in zip(pos, fix_pos)]
-        if (data.Timestamp - lastgoodstamp) <= fix_period:
-                return True
         if data.Tracked == True:
             if diff[0] < fix_range[0] and diff[1] < fix_range[1]:
                 lastgoodstamp = data.TimeStamp
                 return True
+            elif (data.Timestamp - lastgoodstamp) <= fix_period:
+                return True
+        elif (data.Timestamp - lastgoodstamp) <= fix_period:
+            return True
+
         return False

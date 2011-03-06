@@ -548,14 +548,14 @@ class CkgProj:
                     (tracked and not fixated):
                     cur_fix_fail = True
                     if len(fix_fail_queue) == 0 and trybreak > 0:
-                        group_queue.append(CkgWaitScreen())
+                        group_queue.append(CkgWaitScreen(res=self.res))
                     fix_fail_queue.append(self.groups.index(cur_group))
                     # Append failed group to group queue
                     if tryagain > 0:
                         group_queue.append(cur_group)
                         groups_stop += cur_group.duration() * self.fps
                         disp_end += cur_group.duration() * self.fps
-                        # Insert waitscreen every tryagainbreak failed groups
+                        # Insert waitscreen every trybreak failed groups
                         if trybreak > 0:
                             if len(fix_fail_queue) % trybreak == 0:
                                 group_queue.append(CkgWaitScreen())
@@ -851,14 +851,18 @@ class CkgDisplayGroup:
 class CkgWaitScreen(CkgDisplayGroup):
     """Dummy display group, waits for user input to proceed."""
 
-    DEFAULTS = {'g_keys': (pyglet.window.key.SPACE,),
-                'r_keys': (pyglet.window.key.NUM_ENTER,
-                           pyglet.window.key.ENTER),
+    DEFAULTS = {'cont_keys': [(pyglet.window.key.NUM_ENTER,
+                               pyglet.window.key.ENTER),
+                              (pyglet.window.key.SPACE,)],
+                'infos': ["press enter when ready",
+                          "the experiment will start soon"],
                 'res': CkgProj.DEFAULTS['res'],
-                'g_info': "the experiment will start soon",
-                'r_info': "press enter when ready",
+                'font_name': SANS_SERIF,
                 'font_color': (0, 0, 0, 255),
-                'font_size': 16}
+                'font_size': 16,
+                'bold': True,
+                'info_pos': (1/2.0, 16/30.0),
+                'info_anchor': ('center', 'center')}
 
     def __init__(self, **keywords):
         """Create an informative waitscreen that proceeds after user input."""
@@ -867,24 +871,21 @@ class CkgWaitScreen(CkgDisplayGroup):
                 setattr(self, kw, keywords[kw])
             else:
                 setattr(self, kw, self.__class__.DEFAULTS[kw])
-        self.g_label = pyglet.text.Label(self.g_info,
-                                         font_name=SANS_SERIF,
+        if len(self.cont_keys) != len(self.infos):
+            msg = 'list length mismatch between cont_keys and infos'
+            raise IndexError(msg)
+        else:
+            self.num_steps = len(self.infos)
+        self.labels = [pyglet.text.Label(info,
+                                         font_name=self.font_name,
                                          font_size=self.font_size,
                                          color=self.font_color,
-                                         bold=True,
-                                         x=self.res[0]//2,
-                                         y=self.res[1]*16//30,
-                                         anchor_x='center',
-                                         anchor_y='center')
-        self.r_label = pyglet.text.Label(self.r_info,
-                                         font_name=SANS_SERIF,
-                                         font_size=self.font_size,
-                                         color=self.font_color,
-                                         bold=True,
-                                         x=self.res[0]//2,
-                                         y=self.res[1]*16//30,
-                                         anchor_x='center',
-                                         anchor_y='center')
+                                         bold=self.bold,
+                                         x=int(self.res[0]*self.info_pos[0]),
+                                         y=int(self.res[1]*self.info_pos[1]),
+                                         anchor_x=self.info_anchor[0],
+                                         anchor_y=self.info_anchor[1])
+                       for info in self.infos]
         self.reset()
 
     def __setattr__(self, name, value):
@@ -898,31 +899,22 @@ class CkgWaitScreen(CkgDisplayGroup):
         """Resets some flags."""
         self.visible = False
         self.old_visible = False
-        self.ready = False
+        self.steps_done = 0
         self.over = False
 
     def draw(self):
         """Draw informative text."""
-        if not self.ready:
-            self.r_label.draw()
-        else:
-            self.g_label.draw()
+        self.labels[self.steps_done].draw()
 
     def update(self, **keywords):
         """Checks for keypress, sends signal upon end."""
         
         keystates = keywords['keystates']
 
-        if self.r_keys == None:
-            if max([keystates[key] for key in self.g_keys]):
-                self.ready = True
-                self.over = True
-        elif not self.ready:
-            if max([keystates[key] for key in self.r_keys]):
-                self.ready = True
-        else:
-            if max([keystates[key] for key in self.g_keys]):
-                self.over = True
+        if max([keystates[key] for key in self.cont_keys[self.steps_done]]):
+            self.steps_done += 1
+        if self.steps_done == self.num_steps:
+            self.over = True
 
 class CheckerShape:
     # Abstract class, to be implemented.

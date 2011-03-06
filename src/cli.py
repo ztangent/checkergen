@@ -833,7 +833,8 @@ class CkgCmd(cmd.Cmd):
                     return
             for i in args.idlist:
                 if i == -1:
-                    group_queue.append(core.CkgWaitScreen())
+                    group_queue.append(core.CkgWaitScreen(res=
+                                                          self.cur_proj.res))
                 else:
                     group_queue.append(self.cur_proj.groups[i])
         else:
