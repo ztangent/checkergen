@@ -249,7 +249,7 @@ class CkgCmd(cmd.Cmd):
             self.do_new('')
         try:
             args = self.__class__.set_parser.parse_args(shlex.split(line))
-        except CmdParserError:
+        except (CmdParserError, ValueError):
             print "error:", str(sys.exc_value)
             self.__class__.set_parser.print_usage()
             return
@@ -290,7 +290,7 @@ class CkgCmd(cmd.Cmd):
             self.do_new('')
         try:
             args = self.__class__.mkgrp_parser.parse_args(shlex.split(line))
-        except CmdParserError:
+        except (CmdParserError, ValueError):
             print "error:", str(sys.exc_value)
             self.__class__.mkgrp_parser.print_usage()
             return
@@ -326,7 +326,7 @@ class CkgCmd(cmd.Cmd):
             return
         try:
             args = self.__class__.edgrp_parser.parse_args(shlex.split(line))
-        except CmdParserError:
+        except (CmdParserError, ValueError):
             print "error:", str(sys.exc_value)
             self.__class__.edgrp_parser.print_usage()
             return
@@ -372,7 +372,7 @@ class CkgCmd(cmd.Cmd):
             return
         try:
             args = self.__class__.rmgrp_parser.parse_args(shlex.split(line))
-        except CmdParserError:
+        except (CmdParserError, ValueError):
             print "error:", str(sys.exc_value)
             self.__class__.rmgrp_parser.print_usage()
             return
@@ -423,7 +423,7 @@ class CkgCmd(cmd.Cmd):
             return
         try:
             args = self.__class__.chgrp_parser.parse_args(shlex.split(line))
-        except CmdParserError:
+        except (CmdParserError, ValueError):
             print "error:", str(sys.exc_value)
             self.__class__.chgrp_parser.print_usage()
             return
@@ -476,7 +476,7 @@ class CkgCmd(cmd.Cmd):
             self.do_mkgrp('')
         try:
             args = self.__class__.mk_parser.parse_args(shlex.split(line))
-        except CmdParserError:
+        except (CmdParserError, ValueError):
             print "error:", str(sys.exc_value)
             self.__class__.mk_parser.print_usage()
             return
@@ -534,7 +534,7 @@ class CkgCmd(cmd.Cmd):
             return
         try:
             args = self.__class__.ed_parser.parse_args(shlex.split(line))
-        except CmdParserError:
+        except (CmdParserError, ValueError):
             print "error:", str(sys.exc_value)
             self.__class__.ed_parser.print_usage()
             return
@@ -582,7 +582,7 @@ class CkgCmd(cmd.Cmd):
             return
         try:
             args = self.__class__.rm_parser.parse_args(shlex.split(line))
-        except CmdParserError:
+        except (CmdParserError, ValueError):
             print "error:", str(sys.exc_value)
             self.__class__.rm_parser.print_usage()
             return
@@ -640,7 +640,7 @@ class CkgCmd(cmd.Cmd):
             return
         try:
             args = self.__class__.ls_parser.parse_args(shlex.split(line))
-        except CmdParserError:
+        except (CmdParserError, ValueError):
             print "error:", str(sys.exc_value)
             self.__class__.ls_parser.print_usage()
             return
@@ -775,11 +775,11 @@ class CkgCmd(cmd.Cmd):
     display_parser.add_argument('-sp', '--sigpar', action='store_true',
                                 help='''send signals through the parallel port 
                                         when shapes are being displayed''')
-    display_parser.add_argument('-fpbs', metavar='N', type=int, default=0,
+    display_parser.add_argument('-fpbs', metavar='M', type=int, default=0,
                                 help='''unique signal corresponding to a
                                         checkerboard is sent after the board
-                                        undergoes N color reversals (flips),
-                                        set to 0 to disable''')
+                                        undergoes M color flips (default:
+                                        disabled, M=0)''')
     display_parser.add_argument('-et', '--eyetrack', action='store_true',
                                 help='''use eyetracking to ensure that subject
                                         fixates on the cross in the center''')
@@ -789,6 +789,18 @@ class CkgCmd(cmd.Cmd):
     display_parser.add_argument('-ev', '--etvideo', metavar='path',
                                 help='''path (with no spaces) to eyetracking
                                         video file to be used as the source''')
+    display_parser.add_argument('-ta', '--tryagain', metavar='I',
+                                type=int, default=0,
+                                help='''append groups during which subject
+                                        failed to fixate up to I times to the
+                                        list of groups to be displayed
+                                        (default: disabled, I=0)''')
+    display_parser.add_argument('-tb', '--trybreak', metavar='J', type=int,
+                                help='''used with --tryagain, append a wait
+                                        screen to the list of groups to be
+                                        displayed after every J groups have
+                                        been appended to the list (default:
+                                        J=total number of groups)''')
     display_parser.add_argument('idlist', nargs='*', metavar='id', type=int,
                                 help='''list of display groups to be displayed
                                         in the specified order (default: order
@@ -805,25 +817,28 @@ class CkgCmd(cmd.Cmd):
 
         try:
             args = self.__class__.display_parser.parse_args(shlex.split(line))
-        except CmdParserError:
+        except (CmdParserError, ValueError):
             print "error:", str(sys.exc_value)
             self.__class__.display_parser.print_usage()
             return
 
         if args.block != None:
+            blkpath = args.block
             try:
-                blkdict = core.CkgProj.readblk(args.block)
+                blkdict = core.CkgProj.readblk(blkpath)
                 flags = blkdict['flags']
                 try:
                     args = self.__class__.\
                         display_parser.parse_args(shlex.split(flags))
                     args.idlist = blkdict['idlist']
-                except CmdParserError:
+                except (CmdParserError, ValueError):
                     print 'error: invalid flags stored in block file'
                     return
             except IOError:
                 print "error:", str(sys.exc_value)
                 return
+        else:
+            blkpath = None
 
         group_queue = []
         if len(args.idlist) > 0:
@@ -842,6 +857,14 @@ class CkgCmd(cmd.Cmd):
         if args.repeat != None:
             group_queue = list(group_queue * args.repeat)
 
+        if args.eyetrack and eyetracking.available:
+            if not eyetracking.is_calibrated():
+                try:
+                    self.do_calibrate('',True)
+                except eyetracking.EyetrackingError:
+                    print "error:", str(sys.exc_value)
+                    return
+
         if args.priority != None:
             if not priority.available:
                 print "error: setting priority not avaible on", sys.platform
@@ -855,28 +878,27 @@ class CkgCmd(cmd.Cmd):
                     print "error:", str(sys.exc_value)
                     print "continuing..."
 
-        if args.eyetrack and eyetracking.available:
-            if not eyetracking.is_calibrated():
-                try:
-                    self.do_calibrate('',True)
-                except eyetracking.EyetrackingError:
-                    print "error:", str(sys.exc_value)
-                    return
-
         try:
-            self.cur_proj.display(fullscreen=args.fullscreen,
-                                  logtime=args.logtime,
-                                  logdur=args.logdur,
-                                  sigser=args.sigser,
-                                  sigpar=args.sigpar,
-                                  fpbs=args.fpbs,
-                                  phototest=args.phototest,
-                                  eyetrack=args.eyetrack,
-                                  etuser=args.etuser,
-                                  etvideo=args.etvideo,
-                                  group_queue=group_queue)
+            fail_idlist = self.cur_proj.display(fullscreen=args.fullscreen,
+                                                logtime=args.logtime,
+                                                logdur=args.logdur,
+                                                sigser=args.sigser,
+                                                sigpar=args.sigpar,
+                                                fpbs=args.fpbs,
+                                                phototest=args.phototest,
+                                                eyetrack=args.eyetrack,
+                                                etuser=args.etuser,
+                                                etvideo=args.etvideo,
+                                                tryagain=args.tryagain,
+                                                trybreak=args.trybreak,
+                                                group_queue=group_queue)
         except (IOError, NotImplementedError, eyetracking.EyetrackingError):
             print "error:", str(sys.exc_value)
+            if args.priority != None:
+                try:
+                    priority.set('normal')
+                except:
+                    pass
             return
 
         if args.priority != None:
@@ -884,6 +906,15 @@ class CkgCmd(cmd.Cmd):
                 priority.set('normal')
             except:
                 pass
+
+        # Append list of ids of failed groups to block file
+        if fail_idlist != None and blkpath != None:
+            try:
+                core.CkgProj.addtoblk(blkpath, fail_idlist,
+                                      len(self.cur_proj.groups))
+            except IOError:
+                print "error:", str(sys.exc_value)
+                return
 
     export_parser = CmdParser(add_help=False, prog='export',
                               description='''Exports animation as an image
@@ -923,7 +954,7 @@ class CkgCmd(cmd.Cmd):
 
         try:
             args = self.__class__.export_parser.parse_args(shlex.split(line))
-        except CmdParserError:
+        except (CmdParserError, ValueError):
             print "error:", str(sys.exc_value)
             self.__class__.export_parser.print_usage()
             return        
@@ -999,7 +1030,7 @@ class CkgCmd(cmd.Cmd):
 
         try:
             args = self.__class__.mkblks_parser.parse_args(shlex.split(line))
-        except CmdParserError:
+        except (CmdParserError, ValueError):
             print "error:", str(sys.exc_value)
             self.__class__.mkblks_parser.print_usage()
             return
@@ -1008,7 +1039,7 @@ class CkgCmd(cmd.Cmd):
         try:
             disp_args = self.__class__.display_parser.\
                 parse_args(shlex.split(args.flags))
-        except CmdParserError:
+        except (CmdParserError, ValueError):
             print "error: invalid flags to display command"
             print str(sys.exc_value)
             self.__class__.display_parser.print_usage()
@@ -1079,7 +1110,7 @@ class CkgCmd(cmd.Cmd):
     def do_etsetup(self, line):
         try:
             args = self.__class__.etsetup_parser.parse_args(shlex.split(line))
-        except CmdParserError:
+        except (CmdParserError, ValueError):
             print "error:", str(sys.exc_value)
             self.__class__.etsetup_parser.print_usage()
             return

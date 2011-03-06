@@ -321,10 +321,28 @@ class CkgProj:
         blkdict['idlist'] = ([-1] + sequence) * repeats
         return blkdict
 
+    @staticmethod
+    def addtoblk(path, idlist, rowlen):
+        """Appends a list of group ids to the specified block file."""
+
+        if not os.path.isfile(path):
+            msg = "specified file does not exist"
+            raise IOError(msg)
+
+        blkfile = open(path, 'ab')
+        blkwriter = csv.writer(blkfile, dialect='excel-tab')
+        blkwriter.writerow(['groups added:'])
+        # Split idlist into lists of length rowlen, based on grouper recipe
+        args = [iter(idlist)] * rowlen
+        rowlist = itertools.izip_longest(*args, fillvalue='')
+        for row in rowlist:
+            blkwriter.writerow(row)
+        blkfile.close()
+
     def display(self, fullscreen=False, logtime=False, logdur=False,
                 sigser=False, sigpar=False, fpbs=0, phototest=False,
                 eyetrack=False, etuser=False, etvideo=None,
-                tryagain=0, trybreak=0, group_queue=[]):
+                tryagain=0, trybreak=None, group_queue=[]):
         """Displays the project animation on the screen.
 
         fullscreen -- animation is displayed fullscreen if true, stretched
@@ -351,7 +369,7 @@ class CkgProj:
         etvideo -- optional eyetracking video source file to use instead of
         live feed
 
-        tryagain -- Append groups during which subject failed to fixated up to
+        tryagain -- Append groups during which subject failed to fixate up to
         this number of times to the group queue
 
         trybreak -- Append a wait screen to the group queue every time
@@ -405,12 +423,14 @@ class CkgProj:
             if not eyetracking.available:
                 msg = 'eyetracking functionality not available'
                 raise NotImplementedError(msg)
+            if trybreak == None:
+                trybreak = len(self.groups)
             fixated = False
             old_fixated = False
             tracked = False
             old_tracked = False
             cur_fix_fail = False
-            fix_fail_queue = []
+            fail_idlist = []
             eyetracking.select_source(etuser, etvideo)
             eyetracking.start()
         
@@ -547,9 +567,9 @@ class CkgProj:
                 if not cur_fix_fail and cur_group.visible and\
                     (tracked and not fixated):
                     cur_fix_fail = True
-                    if len(fix_fail_queue) == 0 and trybreak > 0:
+                    if len(fail_idlist) == 0 and trybreak > 0:
                         group_queue.append(CkgWaitScreen(res=self.res))
-                    fix_fail_queue.append(self.groups.index(cur_group))
+                    fail_idlist.append(self.groups.index(cur_group))
                     # Append failed group to group queue
                     if tryagain > 0:
                         group_queue.append(cur_group)
@@ -557,7 +577,7 @@ class CkgProj:
                         disp_end += cur_group.duration() * self.fps
                         # Insert waitscreen every trybreak failed groups
                         if trybreak > 0:
-                            if len(fix_fail_queue) % trybreak == 0:
+                            if len(fail_idlist) % trybreak == 0:
                                 group_queue.append(CkgWaitScreen())
                         tryagain -= 1
 
@@ -621,8 +641,8 @@ class CkgProj:
                 logfile.write(logstring)
 
         # Return list of ids of failed groups
-        if eyetrack:
-            return fix_fail_queue
+        if eyetrack and len(fail_idlist) > 0:
+            return fail_idlist
 
     def export(self, export_dir, export_duration, group_queue=[],
                export_fmt=None, folder=True, force=False):
