@@ -25,10 +25,10 @@ def to_decimal(s):
     """ValueError raising Decimal converter."""
     try:
         return Decimal(s)
-    except InvalidOperation:
+    except (InvalidOperation, TypeError):
         try:
             return Decimal(str(s))
-        except InvalidOperation:
+        except (InvalidOperation, TypeError):
             raise ValueError
 
 def to_color(s, sep=','):

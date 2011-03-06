@@ -30,6 +30,7 @@ CKG_FMT = 'ckg'
 XML_NAMESPACE = 'http://github.com/ZOMGxuan/checkergen'
 MAX_EXPORT_FRAMES = 100000
 PRERENDER_TO_TEXTURE = False
+INTEGER_CYCLES = True
 EXPORT_FMTS = ['png']
 EXPORT_DIR_SUFFIX = '-anim'
 BLOCK_DIR_SUFFIX = '-blks'
@@ -1025,7 +1026,11 @@ class CheckerBoard(CheckerShape):
         """Increase the current phase of the checkerboard animation."""
         self._prev_phase = self._cur_phase
         if self.freq != 0:
-            degs_per_frame = 360 * self.freq / fps
+            if INTEGER_CYCLES:
+                frames_per_half_cycle = round(fps / (self.freq * 2))
+                degs_per_frame = 180 / to_decimal(frames_per_half_cycle)
+            else:
+                degs_per_frame = 360 * self.freq / fps
             self._cur_phase += degs_per_frame
             if self._cur_phase >= 360:
                 self._cur_phase %= 360
