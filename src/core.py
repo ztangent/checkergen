@@ -524,7 +524,7 @@ class CkgProj:
                             flipped = 1
                 # Draw and then update group
                 if cur_group != None:
-                    cur_group.draw(photoburst=True)
+                    cur_group.draw(photoburst=photoburst)
                     cur_group.update(fps=self.fps,
                                      fpbs=fpbs,
                                      keystates=keystates)
@@ -1129,13 +1129,9 @@ class CheckerBoard(CheckerShape):
         if not self._computed or always_compute:
             self.compute()
         self._cur_phase %= 360
-        if not photoburst:
-            n = int(self._cur_phase // 180)
-        else:
-            if self._cur_phase == self.phase:
-                n = 0
-            else:
-                n = 1
+        n = int(self._cur_phase // 180)
+        if photoburst and n == 0 and not self.flipped:
+            n = 1
         if PRERENDER_TO_TEXTURE:
             self._prerenders[n].blit(*self.position)
         else:
