@@ -84,6 +84,10 @@ if available:
         """Calibrate the subject.
            Optionally supply a path with no spaces to a 
            calibration file to load."""
+        if not is_source_ready():
+            select_source()
+        if not VET.Tracking:
+            start()
         if path == None:
             if not VET.Calibrate():
                 msg = 'calibration failed'
@@ -95,7 +99,10 @@ if available:
             if not VET.LoadCalibrationFile(path):
                 msg = 'file could not be loaded'
                 raise EyetrackingError(msg)
-
+        if not is_calibrated():
+            msg = 'calibration failed'
+            raise EyetrackingError(msg)
+ 
     def is_calibrated():
         if VET.CalibrationStatus()[0] != 0:
             return True
@@ -105,7 +112,9 @@ if available:
     def start():
         """Start tracking the eye."""
         global lastgoodstamp
-        if VET.CalibrationStatus()[0] == 0:
+        if not is_source_ready():
+            select_source()
+        if not is_calibrated():
             msg = 'subject not yet calibrated'
             raise EyetrackingError(msg)
         lastgoodstamp = 0
