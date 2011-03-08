@@ -341,7 +341,8 @@ class CkgProj:
         blkfile.close()
 
     def display(self, fullscreen=False, logtime=False, logdur=False,
-                sigser=False, sigpar=False, fpbs=0, phototest=False,
+                sigser=False, sigpar=False, fpbs=0,
+                phototest=False, photoburst=False,
                 eyetrack=False, etuser=False, etvideo=None,
                 tryagain=0, trybreak=None, group_queue=[]):
         """Displays the project animation on the screen.
@@ -362,6 +363,8 @@ class CkgProj:
 
         phototest -- draw white rectangle in topleft corner when each group is
         shown for photodiode to detect
+
+        photoburst -- make checkerboards only draw first color for one frame
 
         eyetrack -- use eyetracking to ensure subject is fixating on cross
 
@@ -521,7 +524,7 @@ class CkgProj:
                             flipped = 1
                 # Draw and then update group
                 if cur_group != None:
-                    cur_group.draw()
+                    cur_group.draw(photoburst=True)
                     cur_group.update(fps=self.fps,
                                      fpbs=fpbs,
                                      keystates=keystates)
@@ -794,14 +797,14 @@ class CkgDisplayGroup:
         for shape in self.shapes:
             shape.reset()
 
-    def draw(self, lazy=False):
+    def draw(self, lazy=False, photoburst=False):
         """Draws all contained shapes during the appropriate interval."""
         if self.visible:
             for shape in self.shapes:
                 if lazy:
                     shape.lazydraw()
                 else:
-                    shape.draw()
+                    shape.draw(photoburst=photoburst)
 
     def update(self, **keywords):
         """Increments internal count, makes group visible when appropriate.
@@ -1114,12 +1117,25 @@ class CheckerBoard(CheckerShape):
 
         self._computed = True
 
-    def draw(self, always_compute=False):
-        """Draws appropriate prerender depending on current phase."""
+    def draw(self, photoburst=False, always_compute=False):
+        """Draws appropriate prerender depending on current phase.
+
+        photoburst -- draw first color for only one frame for testing purposes
+
+        always_compute -- recompute what the checkerboard should look like
+        every frame
+
+        """
         if not self._computed or always_compute:
             self.compute()
         self._cur_phase %= 360
-        n = int(self._cur_phase // 180)
+        if not photoburst:
+            n = int(self._cur_phase // 180)
+        else:
+            if self._cur_phase == self.phase:
+                n = 0
+            else:
+                n = 1
         if PRERENDER_TO_TEXTURE:
             self._prerenders[n].blit(*self.position)
         else:

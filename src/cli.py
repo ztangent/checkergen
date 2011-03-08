@@ -765,6 +765,10 @@ class CkgCmd(cmd.Cmd):
                                 help='''draw white test rectangle in topleft
                                         corner of screen when groups become
                                         visible for a photodiode to detect''')
+    display_parser.add_argument('-pb', '--photoburst', action='store_true',
+                                help='''make checkerboards only draw first
+                                        color for one frame to facilitate
+                                        testing with a photodiode''')
     display_parser.add_argument('-lt', '--logtime', action='store_true',
                                 help='output frame timestamps to a log file')
     display_parser.add_argument('-ld', '--logdur', action='store_true',
@@ -886,6 +890,7 @@ class CkgCmd(cmd.Cmd):
                                                 sigpar=args.sigpar,
                                                 fpbs=args.fpbs,
                                                 phototest=args.phototest,
+                                                photoburst=args.photoburst,
                                                 eyetrack=args.eyetrack,
                                                 etuser=args.etuser,
                                                 etvideo=args.etvideo,
