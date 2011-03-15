@@ -841,7 +841,7 @@ class CkgCmd(cmd.Cmd):
         else:
             blkpath = None
 
-        group_queue = []
+        groupq = []
         if len(args.idlist) > 0:
             for i in set(args.idlist):
                 if i >= len(self.cur_proj.groups) or i < -1:
@@ -849,14 +849,14 @@ class CkgCmd(cmd.Cmd):
                     return
             for i in args.idlist:
                 if i == -1:
-                    group_queue.append(core.CkgWaitScreen(res=
+                    groupq.append(core.CkgWaitScreen(res=
                                                           self.cur_proj.res))
                 else:
-                    group_queue.append(self.cur_proj.groups[i])
+                    groupq.append(self.cur_proj.groups[i])
         else:
-            group_queue = list(self.cur_proj.groups)
+            groupq = list(self.cur_proj.groups)
         if args.repeat != None:
-            group_queue = list(group_queue * args.repeat)
+            groupq = list(groupq * args.repeat)
 
         if args.eyetrack and eyetracking.available:
             if not eyetracking.is_calibrated():
@@ -893,7 +893,7 @@ class CkgCmd(cmd.Cmd):
                                                 etvideo=args.etvideo,
                                                 tryagain=args.tryagain,
                                                 trybreak=args.trybreak,
-                                                group_queue=group_queue)
+                                                groupq=groupq)
         except (IOError, NotImplementedError, eyetracking.EyetrackingError):
             print "error:", str(sys.exc_value)
             if args.priority != None:
@@ -966,16 +966,16 @@ class CkgCmd(cmd.Cmd):
                 if i >= len(self.cur_proj.groups) or i < 0:
                     print 'error: group', i, 'does not exist'
                     return
-            group_queue = [self.cur_proj.groups[i] for i in args.idlist]
+            groupq = [self.cur_proj.groups[i] for i in args.idlist]
         else:
-            group_queue = list(self.cur_proj.groups)
+            groupq = list(self.cur_proj.groups)
         if args.repeat != None:
-            group_queue = list(group_queue * args.repeat)
+            groupq = list(groupq * args.repeat)
 
         try:
             self.cur_proj.export(export_dir=args.dir,
                                  export_duration=args.duration,
-                                 group_queue=group_queue,
+                                 groupq=groupq,
                                  folder=args.folder)
         except IOError:
             print "error:", str(sys.exc_value)
@@ -988,7 +988,7 @@ class CkgCmd(cmd.Cmd):
                     if self.__class__.yn_parse(raw_input()):
                         self.cur_proj.export(export_dir=args.dir,
                                              export_duration=args.duration,
-                                             group_queue=group_queue,
+                                             groupq=groupq,
                                              export_fmt=None,
                                              folder=args.folder,
                                              force=True)

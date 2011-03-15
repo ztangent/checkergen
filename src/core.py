@@ -351,7 +351,7 @@ class CkgProj:
                 sigser=False, sigpar=False, fpbs=0,
                 phototest=False, photoburst=False,
                 eyetrack=False, etuser=False, etvideo=None,
-                tryagain=0, trybreak=None, group_queue=[]):
+                tryagain=0, trybreak=None, groupq=[]):
         """Displays the project animation on the screen.
 
         fullscreen -- animation is displayed fullscreen if true, stretched
@@ -386,7 +386,7 @@ class CkgProj:
         trybreak -- Append a wait screen to the group queue every time
         after this many groups have been appended to the queue
         
-        group_queue -- queue of groups to be displayed, defaults to order of
+        groupq -- queue of groups to be displayed, defaults to order of
         groups in project (i.e. groups[0] first, etc.)
                 
         """
@@ -402,13 +402,12 @@ class CkgProj:
                                       anchor='topleft')
 
         # Set-up groups and variables that control their display
-        if group_queue == []:
-            group_queue = list(self.groups)
-        cur_group = None
-        cur_id = -1
+        if groupq == []:
+            groupq = list(self.groups)
+        n = -1
         flipped = 0
         flip_id = -1
-        groups_duration = sum([group.duration() for group in group_queue])
+        groups_duration = sum([group.duration() for group in groupq])
         groups_start = self.pre * self.fps
         groups_stop = (self.pre + groups_duration) * self.fps
         disp_end = (self.pre + groups_duration + self.post) * self.fps
@@ -500,39 +499,32 @@ class CkgProj:
  
             # Manage groups when they are on_screen
             if groups_visible:
-                # Send special signal if waitscreen ends
-                if isinstance(cur_group, CkgWaitScreen):
-                    if cur_group.over:
-                        signals.set_user_start()
-                        cur_group = None
-                elif cur_group != None:
-                    # Check whether group changes in visibility
-                    if cur_group.visible != cur_group.old_visible:
-                        flip_id = self.groups.index(cur_group)
-                        if cur_group.visible:
-                            flipped = 1
-                        elif cur_group.old_visible:
-                            flipped = -1
-                    # Check if current group is over
-                    if cur_group.over:
-                        cur_group = None
+                # Check whether group changes in visibility
+                if n >= 0 and groupq[n].visible != groupq[n].old_visible:
+                    flip_id = self.groups.index(groupq[n])
+                    if groupq[n].visible:
+                        flipped = 1
+                    elif groupq[n].old_visible:
+                        flipped = -1
                 # Get next group from queue
-                if cur_group == None:
-                    cur_id += 1
-                    if cur_id >= len(group_queue):
+                if n < 0 or groupq[n].over:
+                    # Send special signal if waitscreen ends
+                    if isinstance(groupq[n], CkgWaitScreen):
+                        signals.set_user_start()
+                    n += 1
+                    if n >= len(groupq):
                         groups_visible = False
                     else:
-                        cur_group = group_queue[cur_id]
-                        cur_group.reset()
+                        groupq[n].reset()
                         if eyetrack:
                             cur_fix_fail = False
-                        if cur_group.visible:
-                            flip_id = self.groups.index(cur_group)
+                        if groupq[n].visible:
+                            flip_id = self.groups.index(groupq[n])
                             flipped = 1
                 # Draw and then update group
-                if cur_group != None:
-                    cur_group.draw(photoburst=photoburst)
-                    cur_group.update(fps=self.fps,
+                if n >= 0:
+                    groupq[n].draw(photoburst=photoburst)
+                    groupq[n].update(fps=self.fps,
                                      fpbs=fpbs,
                                      keystates=keystates)
 
@@ -575,21 +567,21 @@ class CkgProj:
                         signals.set_fix_stop()
 
                 # Take note of which groups in which fixation failed
-                if not cur_fix_fail and cur_group.visible and\
+                if not cur_fix_fail and groupq[n].visible and\
                     (tracked and not fixated):
                     cur_fix_fail = True
                     if len(fail_idlist) == 0 and trybreak > 0:
-                        group_queue.append(CkgWaitScreen(res=self.res))
-                    fail_idlist.append(self.groups.index(cur_group))
+                        groupq.append(CkgWaitScreen(res=self.res))
+                    fail_idlist.append(self.groups.index(groupq[n]))
                     # Append failed group to group queue
                     if tryagain > 0:
-                        group_queue.append(cur_group)
-                        groups_stop += cur_group.duration() * self.fps
-                        disp_end += cur_group.duration() * self.fps
+                        groupq.append(groupq[n])
+                        groups_stop += groupq[n].duration() * self.fps
+                        disp_end += groupq[n].duration() * self.fps
                         # Insert waitscreen every trybreak failed groups
                         if trybreak > 0:
                             if len(fail_idlist) % trybreak == 0:
-                                group_queue.append(CkgWaitScreen())
+                                groupq.append(CkgWaitScreen())
                         tryagain -= 1
 
             # Change cross color based on time if eyetracking is not enabled
@@ -601,7 +593,7 @@ class CkgProj:
                     fix_crosses[1].draw()                
 
             # Increment count and set whether groups should be shown
-            if not isinstance(cur_group, CkgWaitScreen):
+            if not isinstance(groupq[n], CkgWaitScreen):
                 count += 1
             if groups_start <= count < groups_stop:
                 groups_visible = True
@@ -655,7 +647,7 @@ class CkgProj:
         if eyetrack and len(fail_idlist) > 0:
             return fail_idlist
 
-    def export(self, export_dir, export_duration, group_queue=[],
+    def export(self, export_dir, export_duration, groupq=[],
                export_fmt=None, folder=True, force=False):
         if not os.path.isdir(export_dir):
                 msg = 'export path is not a directory'
@@ -664,11 +656,10 @@ class CkgProj:
             export_fmt = self.export_fmt
 
         # Set-up groups and variables that control their display
-        if group_queue == []:
-            group_queue = list(self.groups)
-        cur_group = None
-        cur_id = -1
-        groups_duration = sum([group.duration() for group in group_queue])
+        if groupq == []:
+            groupq = list(self.groups)
+        n = -1
+        groups_duration = sum([group.duration() for group in groupq])
         groups_start = self.pre * self.fps
         groups_stop = (self.pre + groups_duration) * self.fps
         disp_end = (self.pre + groups_duration + self.post) * self.fps
@@ -712,22 +703,18 @@ class CkgProj:
             fbo.clear()
 
             if groups_visible:
-                # Check if current group is over
-                if cur_group != None:
-                    if cur_group.over:
-                        cur_group = None
                 # Get next group from queue
-                if cur_group == None:
-                    cur_id += 1
-                    if cur_id >= len(group_queue):
+                if n < 0 or groupq[n].over:
+                    n += 1
+                    if n >= len(groupq):
                         groups_visible = False
                     else:
-                        cur_group = group_queue[cur_id]
-                        cur_group.reset()
+                        groupq[n].reset()
                 # Draw and then update group
-                if cur_group != None:
-                    cur_group.draw()
-                    cur_group.update(fps=self.fps, fpbs=0)
+                if n >= 0:
+                    groupq[n].draw()
+                    groupq[n].update(fps=self.fps, fpbs=0)
+
             # Draw fixation cross based on current count
             if (count % (sum(self.cross_times) * self.fps) 
                 < self.cross_times[0] * self.fps):
@@ -761,6 +748,11 @@ class CkgExp:
     def __init__(self, **keywords):
         """Create a checkergen experiment, which specifies how a project
         is to be displayed.
+
+        path -- if specified, ignore other arguments and load project 
+        from path
+
+        name -- name of the experiment
 
         proj -- CkgProj that the experiment is to be created for
 
