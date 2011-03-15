@@ -6,6 +6,7 @@ FrameOverflowError
 
 Classes:
 CkgProj -- A checkergen project, contains settings and CkgDisplayGroups.
+CkgExp -- A checkergen experiment, describes how a projet is displayed.
 CkgDisplayGroup -- A set of CheckerShapes to be displayed simultaneously.
 CheckerShapes -- Abstract checkered shape class
 CheckerBoard -- A (distorted) checkerboard pattern, can color-flip.
@@ -27,6 +28,8 @@ import eyetracking
 from utils import *
 
 CKG_FMT = 'ckg'
+EXP_FMT = 'exp'
+LOG_FMT = 'log'
 XML_NAMESPACE = 'http://github.com/ZOMGxuan/checkergen'
 MAX_EXPORT_FRAMES = 100000
 PRERENDER_TO_TEXTURE = False
@@ -203,11 +206,15 @@ class CkgProj:
 
         # Get project name from filename
         name, ext = os.path.splitext(os.path.basename(path))
-        if ext == '.{0}'.format(CKG_FMT):
-            self.name = name
-        else:
+        if len(ext) == 0:
+            path = '{0}.{1}'.format(path, CKG_FMT)                
+        elif ext != '.{0}'.format(CKG_FMT):
             msg = "path lacks '.{0}' extension".format(CKG_FMT)
             raise FileFormatError(msg)
+        if not os.path.isfile(path):
+            msg = "specified file does not exist"
+            raise IOError(msg)
+        self.name = name
 
         with open(path, 'r') as project_file:
             doc = minidom.parse(project_file)
@@ -745,6 +752,102 @@ class CkgProj:
 
         fbo.delete()
 
+class CkgExp:
+
+    DEFAULTS = {'name': 'untitled', 'proj' : None, 
+                'trials': 1, 'sequences': None,
+                'flags': '--fullscreen --logtime --logdur'}
+
+    def __init__(self, **keywords):
+        """Create a checkergen experiment, which specifies how a project
+        is to be displayed.
+
+        proj -- CkgProj that the experiment is to be created for
+
+        trials -- number of times the selected sequence of display groups
+        will be shown in one block
+
+        sequences -- list of possible display group id sequences, from which
+        one sequence will be randomly  selected for display in a block,
+        defaults to reduced latin square with side length equal to the number
+        of display groups in the supplied CkgProj
+
+        flags -- string passed to the display command as flags
+
+        """
+        if 'path' in keywords.keys():
+            self.load(keywords['path'])
+            return
+        for kw in self.__class__.DEFAULTS.keys():
+            if kw in keywords.keys():
+                setattr(self, kw, keywords[kw])
+            else:
+                setattr(self, kw, self.__class__.DEFAULTS[kw])
+
+        if 'name' not in keywords.keys() and self.proj != None:
+            self.name = self.proj.name
+
+        if self.sequences == None:
+            if self.proj == None:
+                msg = "either project or sequences have to be specified"
+                raise ValueError(msg)
+            else:
+                self.gen_latin_square(len(self.proj.groups))
+
+        del self.proj
+
+    def gen_latin_square(self, n):
+        """Set experiment sequences as a cyclic reduced latin square."""
+        sequence = range(n)
+        self.sequences = [[sequence[i - j] for i in range(n)] 
+                          for j in range(n, 0, -1)]
+
+    def save(self, path=None):
+        """Saves experiment to specified path as a CSV file."""
+
+        if path == None:
+            path = os.path.join(os.getcwd(),
+                                '{0}.{1}'.format(self.name, EXP_FMT))
+        else:
+            self.name, ext = os.path.splitext(os.path.basename(path))
+            if ext != '.{0}'.format(EXP_FMT):
+                path = '{0}.{1}'.format(path, EXP_FMT)
+
+        with open(path, 'wb') as expfile:
+            expwriter = csv.writer(expfile, dialect='excel-tab')
+            expwriter.writerow(['checkergen experiment file'])
+            expwriter.writerow(['flags:', self.flags])
+            expwriter.writerow(['trials:', self.trials])
+            expwriter.writerow(['sequences:'])
+            for sequence in self.sequences:
+                expwriter.writerow(sequence)
+
+    def load(self, path):
+        """Loads project from specified path."""
+
+        # Get project name from filename
+        name, ext = os.path.splitext(os.path.basename(path))
+        if len(ext) == 0:
+            path = '{0}.{1}'.format(path, EXP_FMT)                
+        elif ext != '.{0}'.format(EXP_FMT):
+            msg = "path lacks '.{0}' extension".format(EXP_FMT)
+            raise FileFormatError(msg)
+        if not os.path.isfile(path):
+            msg = "specified file does not exist"
+            raise IOError(msg)
+        self.name = name
+
+        with open(path, 'rb') as expfile:
+            expreader = csv.reader(expfile, dialect='excel-tab')
+            for n, row in enumerate(expreader):
+                if n == 1:
+                    self.flags = row[1]
+                elif n == 2:
+                    self.trials = int(row[1])
+                elif n > 3:
+                    sequence = [int(i) for i in row]
+                    self.sequences.append(sequence)
+            
 class CkgDisplayGroup:
 
     DEFAULTS = {'pre': 0, 'disp': 'Infinity', 'post': 0}

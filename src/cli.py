@@ -153,9 +153,6 @@ class CkgCmd(cmd.Cmd):
         if len(path) == 0:
             print 'error: no path specified'
             return
-        if not os.path.isfile(path):
-            print 'error: path specified is not a file'
-            return
         if self.save_check():
             return
         try:
