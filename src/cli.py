@@ -744,8 +744,8 @@ class CkgCmd(cmd.Cmd):
     display_parser = CmdParser(add_help=False, prog='display',
                                description='''Displays the animation in a
                                               window or in fullscreen.''')
-    display_parser.add_argument('-b', '--block', metavar='PATH',
-                                help='''read flags and dislay group order from
+    display_parser.add_argument('-e', '--expfile', metavar='PATH',
+                                help='''run experiment as described in
                                         specified file, ignore other flags''')
     display_parser.add_argument('-f', '--fullscreen', action='store_true',
                                 help='sets fullscreen mode, ESC to quit')
@@ -823,23 +823,28 @@ class CkgCmd(cmd.Cmd):
             self.__class__.display_parser.print_usage()
             return
 
-        if args.block != None:
-            blkpath = args.block
+        blk = None
+        if args.expfile != None:
             try:
-                blkdict = core.CkgProj.readblk(blkpath)
-                flags = blkdict['flags']
-                try:
-                    args = self.__class__.\
-                        display_parser.parse_args(shlex.split(flags))
-                    args.idlist = blkdict['idlist']
-                except (CmdParserError, ValueError):
-                    print 'error: invalid flags stored in block file'
-                    return
+                exp = core.CkgExp(path=args.expfile)
             except IOError:
                 print "error:", str(sys.exc_value)
                 return
-        else:
-            blkpath = None
+            try:
+                args = self.__class__.\
+                    display_parser.parse_args(shlex.split(exp.flags))
+            except (CmdParserError, ValueError):
+                print 'error: invalid flags stored in block file'
+                return
+            try:
+                print """name of log file (default: experiment name):"""
+                blkname = raw_input().strip().strip('"\'')
+            except EOFError:
+                return
+            if blkname == '':
+                blkname == exp.name
+            blk = exp.random_blk(blkname)
+            args.idlist = blk.idlist()
 
         groupq = []
         if len(args.idlist) > 0:
@@ -849,8 +854,7 @@ class CkgCmd(cmd.Cmd):
                     return
             for i in args.idlist:
                 if i == -1:
-                    groupq.append(core.CkgWaitScreen(res=
-                                                          self.cur_proj.res))
+                    groupq.append(core.CkgWaitScreen(res=self.cur_proj.res))
                 else:
                     groupq.append(self.cur_proj.groups[i])
         else:
@@ -879,6 +883,7 @@ class CkgCmd(cmd.Cmd):
                     print "error:", str(sys.exc_value)
                     print "continuing..."
 
+        print "displaying..."
         try:
             fail_idlist = self.cur_proj.display(fullscreen=args.fullscreen,
                                                 logtime=args.logtime,
@@ -909,14 +914,15 @@ class CkgCmd(cmd.Cmd):
             except:
                 pass
 
-        # Append list of ids of failed groups to block file
-        if fail_idlist != None and blkpath != None:
+        # Save log file
+        if blk != None:
+            blk.fail_idlist = fail_idlist
             try:
-                core.CkgProj.addtoblk(blkpath, fail_idlist,
-                                      len(self.cur_proj.groups))
+                blk.write_log()
             except IOError:
                 print "error:", str(sys.exc_value)
                 return
+            print "log file written"
 
     export_parser = CmdParser(add_help=False, prog='export',
                               description='''Exports animation as an image

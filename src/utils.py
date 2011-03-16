@@ -4,6 +4,7 @@ import os
 import time
 import math
 from decimal import *
+from itertools import *
 
 def numdigits(x):
     """Returns number of digits in a decimal integer."""
@@ -37,6 +38,12 @@ def to_color(s, sep=','):
     if len(c) != 3:
         raise ValueError
     return c
+
+# From itertools documentation
+def grouper(n, iterable, fillvalue=None):
+    """grouper(3, 'ABCDEFG', 'x') --> ABC DEF Gxx"""
+    args = [iter(iterable)] * n
+    return izip_longest(fillvalue=fillvalue, *args)
 
 class Timer:
     """High-res timer that should be cross-platform."""

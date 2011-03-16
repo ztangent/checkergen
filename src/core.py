@@ -29,8 +29,8 @@ import eyetracking
 from utils import *
 
 CKG_FMT = 'ckg'
-EXP_FMT = 'cxp'
-LOG_FMT = 'clg'
+EXP_FMT = 'ckx'
+LOG_FMT = 'log'
 XML_NAMESPACE = 'http://github.com/ZOMGxuan/checkergen'
 MAX_EXPORT_FRAMES = 100000
 PRERENDER_TO_TEXTURE = False
@@ -268,85 +268,6 @@ class CkgProj:
         self._dirty = False
 
         return path
-
-    def mkblks(self, length, path=None, folder=True, flags=''):
-        """Generates randomized experimental blocks from display groups.
-        Each block is saved as a CSV file.
-
-        length -- number of repeated trials within a block
-
-        path -- directory in which experimental blocks will be saved
-
-        folder -- blocks will be saved in a containing folder if true
-
-        flags -- string of flags to be issued to the display command when
-        block file is run
-
-        """
-
-        if path == None:
-            path = os.getcwd()
-
-        if not os.path.isdir(path):
-            msg = "specified directory does not exist"
-            raise IOError(msg)
-
-        if folder:
-            path = os.path.join(path, self.name + BLOCK_DIR_SUFFIX)
-            if not os.path.isdir(path):
-                os.mkdir(path)
-
-        group_ids = range(len(self.groups))
-        for n, sequence in enumerate(itertools.permutations(group_ids)):
-            blkname = 'block{0}.csv'.format(repr(n).zfill(numdigits(length)))
-            blkfile = open(os.path.join(path, blkname), 'wb')
-            blkwriter = csv.writer(blkfile, dialect='excel-tab')
-            blkwriter.writerow(['checkergen experimental block file'])
-            blkwriter.writerow(['flags:', flags])
-            blkwriter.writerow(['repeats:', length])
-            blkwriter.writerow(['sequence:'] + list(sequence))
-            blkfile.close()
-
-    @staticmethod
-    def readblk(path):
-        """Reads the information in a block file and returns it in a dict."""
-
-        if not os.path.isfile(path):
-            msg = "specified file does not exist"
-            raise IOError(msg)
-
-        blkdict = dict()
-        blkfile = open(path, 'rb')
-        blkreader = csv.reader(blkfile, dialect='excel-tab')
-        for n, row in enumerate(blkreader):
-            if n == 1:
-                blkdict['flags'] = row[1]
-            elif n == 2:
-                repeats = int(row[1])
-            elif n == 3:
-                sequence = row[1:]
-                sequence = [int(i) for i in sequence]
-        blkfile.close()
-        blkdict['idlist'] = ([-1] + sequence) * repeats
-        return blkdict
-
-    @staticmethod
-    def addtoblk(path, idlist, rowlen):
-        """Appends a list of group ids to the specified block file."""
-
-        if not os.path.isfile(path):
-            msg = "specified file does not exist"
-            raise IOError(msg)
-
-        blkfile = open(path, 'ab')
-        blkwriter = csv.writer(blkfile, dialect='excel-tab')
-        blkwriter.writerow(['groups added:'])
-        # Split idlist into lists of length rowlen, based on grouper recipe
-        args = [iter(idlist)] * rowlen
-        rowlist = itertools.izip_longest(*args, fillvalue='')
-        for row in rowlist:
-            blkwriter.writerow(row)
-        blkfile.close()
 
     def display(self, fullscreen=False, logtime=False, logdur=False,
                 sigser=False, sigpar=False, fpbs=0,
@@ -795,14 +716,17 @@ class CkgExp:
         self.sequences = [[sequence[i - j] for i in range(n)] 
                           for j in range(n, 0, -1)]
 
-    def get_idlist(self):
-        """Choose random sequence, create idlist from it and return."""
+    def random_blk(self, name):
+        """Choose random sequence, create block from it and return."""
         sequence = random.choice(self.sequences)
-        idlist = ([-1] + sequence) * self.trials
-        return idlist
+        blk = CkgBlk(name=name,
+                     flags=self.flags,
+                     trials=self.trials,
+                     sequence=sequence)
+        return blk
 
     def save(self, path=None):
-        """Saves experiment to specified path as a CSV file."""
+        """Saves experiment to specified path in the CSV format."""
 
         if path == None:
             path = os.path.join(os.getcwd(),
@@ -836,6 +760,7 @@ class CkgExp:
             raise IOError(msg)
         self.name = name
 
+        self.sequences = []
         with open(path, 'rb') as expfile:
             expreader = csv.reader(expfile, dialect='excel-tab')
             for n, row in enumerate(expreader):
@@ -846,7 +771,48 @@ class CkgExp:
                 elif n > 3:
                     sequence = [int(i) for i in row]
                     self.sequences.append(sequence)
-            
+ 
+class CkgBlk:
+
+    def __init__(self, name, flags, trials, sequence):
+        """Creates an experimental block."""
+        self.name = name
+        self.flags = flags
+        self.trials = trials
+        self.sequence = sequence
+        self.fail_idlist = None
+        self.timelog = None
+
+    def idlist(self):
+        """Generate idlist from sequence and return it."""
+        idlist = ([-1] + self.sequence) * self.trials
+        return idlist
+
+    def write_log(self, path=None):
+        """Write a log file for the experimental block in the CSV format."""
+
+        if path == None:
+            path = os.path.join(os.getcwd(),
+                                '{0}.{1}'.format(self.name, LOG_FMT))
+        else:
+            self.name, ext = os.path.splitext(os.path.basename(path))
+            if ext != '.{0}'.format(LOG_FMT):
+                path = '{0}.{1}'.format(path, LOG_FMT)
+
+        with open(path, 'wb') as blkfile:
+            blkwriter = csv.writer(blkfile, dialect='excel-tab')
+            blkwriter.writerow(['checkergen log file'])
+            blkwriter.writerow(['flags:', self.flags])
+            blkwriter.writerow(['trials:', self.trials])
+            blkwriter.writerow(['sequence:'] + self.sequence)
+            if self.fail_idlist != None:
+                blkwriter.writerow(['groups added:'])
+                rowlist = grouper(len(self.sequence), self.fail_idlist, '')
+                for row in rowlist:
+                    blkwriter.writerow(row)
+            if self.timelog != None:
+                pass
+           
 class CkgDisplayGroup:
 
     DEFAULTS = {'pre': 0, 'disp': 'Infinity', 'post': 0}
@@ -1028,7 +994,7 @@ class CkgWaitScreen(CkgDisplayGroup):
         self.steps_done = 0
         self.over = False
 
-    def draw(self):
+    def draw(self, **keywords):
         """Draw informative text."""
         self.labels[self.steps_done].draw()
 
