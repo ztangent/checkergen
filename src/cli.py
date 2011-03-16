@@ -1123,7 +1123,19 @@ class CkgCmd(cmd.Cmd):
                               fixation_range=args.fixrange)
         except eyetracking.EyetrackingError:
             print "error:", str(sys.exc_value)
-       
+
+    def do_pwd(self, line):
+        """Prints the current working directory."""
+        print os.getcwd()
+
+    def do_cd(self, line):
+        """Change working directory to specified path."""
+        path = line.strip().strip('"\'')
+        if not os.path.isdir(path):
+            print "error: specified path is not a directory"
+            return
+        os.chdir(path)
+    
     def do_quit(self, line):
         """Quits the program."""
         if self.save_check():
