@@ -273,7 +273,7 @@ class CkgProj:
                 sigser=False, sigpar=False, fpbs=0,
                 phototest=False, photoburst=False,
                 eyetrack=False, etuser=False, etvideo=None,
-                tryagain=0, trybreak=None, groupq=[]):
+                tryagain=0, trybreak=None, groupq=[], blk=None):
         """Displays the project animation on the screen.
 
         fullscreen -- animation is displayed fullscreen if true, stretched
@@ -310,7 +310,10 @@ class CkgProj:
         
         groupq -- queue of groups to be displayed, defaults to order of
         groups in project (i.e. groups[0] first, etc.)
-                
+
+        blk -- experimental block where logged variables are saved (i.e.
+        fail_idlist and time information)
+
         """
 
         # Create fixation crosses
@@ -395,16 +398,15 @@ class CkgProj:
         window.set_visible()
 
         # Initialize logging variables
-        if logtime and logdur:
-            logstring = ''
-            stamp = Timer()
-            dur = Timer()
-            stamp.start()
-            dur.start()
-        elif logtime or logdur:
-            logstring = ''
+        if logtime:
+            timestamps = []
+            sigstamps = []
             timer = Timer()
             timer.start()
+        if logdur:
+            durstamps = []
+            dur = Timer()
+            dur.start()
 
         # Main loop
         while not window.has_exit and count < disp_end:
@@ -532,23 +534,21 @@ class CkgProj:
             # Make sure everything has been drawn
             pyglet.gl.glFinish()
 
-            # Append time information to log string            
-            if logtime and logdur:
-                logstring = '\n'.join([logstring, str(stamp.elapsed())])
-                logstring = '\t'.join([logstring, str(dur.restart())])
-            elif logtime:
-                logstring = '\n'.join([logstring, str(timer.elapsed())])
-            elif logdur:
-                logstring = '\n'.join([logstring, str(timer.restart())])
+            # Append time information to lists
+            if logtime:
+                timestamps.append(timer.elapsed())
+            if logdur:
+                durstamps.append(dur.restart())
 
             # Send signals ASAP after flip
             signals.send(sigser, sigpar)
 
             # Log when signals are sent
-            if logtime or logdur:
+            if logtime:
                 if flipped != 0 and (sigser or sigpar):
-                    sigmsg = '{0} sent'.format(signals.STATE)
-                    logstring = '\t'.join([logstring, sigmsg])
+                    sigstamps.append(signals.STATE)
+                else:
+                    sigstamps.append('')
 
         # Clean up
         if eyetrack:
@@ -559,15 +559,15 @@ class CkgProj:
             del canvas
         signals.quit(sigser, sigpar)
 
-        # Write log string to file
-        if logtime or logdur:
-            filename = '{0}.log'.format(self.name)
-            with open(filename, 'w') as logfile:
-                logfile.write(logstring)
-
-        # Return list of ids of failed groups
-        if eyetrack and len(fail_idlist) > 0:
-            return fail_idlist
+        # Store variables in block object
+        if blk != None:
+            if logtime:
+                blk.timestamps = timestamps
+                blk.sigstamps = sigstamps
+            if logdur:
+                blk.durstamps = durstamps
+            if eyetrack and len(fail_idlist) > 0:
+                blk.fail_idlist = fail_idlist
 
     def export(self, export_dir, export_duration, groupq=[],
                export_fmt=None, folder=True, force=False):
@@ -781,7 +781,9 @@ class CkgBlk:
         self.trials = trials
         self.sequence = sequence
         self.fail_idlist = None
-        self.timelog = None
+        self.timestamps = []
+        self.durstamps = []
+        self.sigstamps = []
 
     def idlist(self):
         """Generate idlist from sequence and return it."""
@@ -810,9 +812,15 @@ class CkgBlk:
                 rowlist = grouper(len(self.sequence), self.fail_idlist, '')
                 for row in rowlist:
                     blkwriter.writerow(row)
-            if self.timelog != None:
-                pass
-           
+            stamps = [self.timestamps, self.durstamps, self.sigstamps]
+            if len(max(stamps)) > 0:
+                for l in stamps:
+                    if len(l) == 0:
+                        l = [''] * len(max(stamps))
+                blkwriter.writerow(['timestamps', 'durations', 'triggers'])
+                for row in zip(*stamps):
+                    blkwriter.writerow(row)
+
 class CkgDisplayGroup:
 
     DEFAULTS = {'pre': 0, 'disp': 'Infinity', 'post': 0}

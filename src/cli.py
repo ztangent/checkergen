@@ -823,7 +823,6 @@ class CkgCmd(cmd.Cmd):
             self.__class__.display_parser.print_usage()
             return
 
-        blk = None
         if args.expfile != None:
             try:
                 exp = core.CkgExp(path=args.expfile)
@@ -845,6 +844,11 @@ class CkgCmd(cmd.Cmd):
                 blkname == exp.name
             blk = exp.random_blk(blkname)
             args.idlist = blk.idlist()
+        else:
+            blk = core.CkgBlk(name=self.cur_proj.name,
+                              trials=None,
+                              flags=line,
+                              sequence=[])
 
         groupq = []
         if len(args.idlist) > 0:
@@ -885,20 +889,21 @@ class CkgCmd(cmd.Cmd):
 
         print "displaying..."
         try:
-            fail_idlist = self.cur_proj.display(fullscreen=args.fullscreen,
-                                                logtime=args.logtime,
-                                                logdur=args.logdur,
-                                                sigser=args.sigser,
-                                                sigpar=args.sigpar,
-                                                fpbs=args.fpbs,
-                                                phototest=args.phototest,
-                                                photoburst=args.photoburst,
-                                                eyetrack=args.eyetrack,
-                                                etuser=args.etuser,
-                                                etvideo=args.etvideo,
-                                                tryagain=args.tryagain,
-                                                trybreak=args.trybreak,
-                                                groupq=groupq)
+            self.cur_proj.display(fullscreen=args.fullscreen,
+                                  logtime=args.logtime,
+                                  logdur=args.logdur,
+                                  sigser=args.sigser,
+                                  sigpar=args.sigpar,
+                                  fpbs=args.fpbs,
+                                  phototest=args.phototest,
+                                  photoburst=args.photoburst,
+                                  eyetrack=args.eyetrack,
+                                  etuser=args.etuser,
+                                  etvideo=args.etvideo,
+                                  tryagain=args.tryagain,
+                                  trybreak=args.trybreak,
+                                  groupq=groupq,
+                                  blk=blk)
         except (IOError, NotImplementedError, eyetracking.EyetrackingError):
             print "error:", str(sys.exc_value)
             if args.priority != None:
@@ -914,15 +919,12 @@ class CkgCmd(cmd.Cmd):
             except:
                 pass
 
-        # Save log file
-        if blk != None:
-            blk.fail_idlist = fail_idlist
-            try:
-                blk.write_log()
-            except IOError:
-                print "error:", str(sys.exc_value)
-                return
-            print "log file written"
+        try:
+            blk.write_log()
+        except IOError:
+            print "error:", str(sys.exc_value)
+            return
+        print "log file written"
 
     export_parser = CmdParser(add_help=False, prog='export',
                               description='''Exports animation as an image
