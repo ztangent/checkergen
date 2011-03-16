@@ -1002,42 +1002,56 @@ class CkgCmd(cmd.Cmd):
 
         print "Export done."
 
-    mkblks_parser = CmdParser(add_help=False, prog='mkblks',
-                              description='''Generates randomized experimental
-                                             blocks from display groups and
-                                             saves each as a CSV file.''')
-    mkblks_parser.add_argument('-n','--nofolder',
-                               dest='folder', action='store_false',
-                               help='''force block files not to be saved in 
-                                       a containing folder''')
-    mkblks_parser.add_argument('-d','--dir', default=os.getcwd(),
-                               help='''where to save block files
-                                       (default: current working directory)''')
-    mkblks_parser.add_argument('length', type=int,
-                               help='''no. of repeated trials in a block''')
-    mkblks_parser.add_argument('flags', nargs='?', default='',
+    mkexp_parser = CmdParser(add_help=False, prog='mkexp',
+                              description='''Create checkergen experiment file
+                                             which describes how the project
+                                             is to be displayed.''')
+    mkexp_parser.add_argument('-n', '--name',
+                               help='''name of the experiment (default: same
+                                       name as current project)''')
+    mkexp_parser.add_argument('-t', '--trials', type=int, metavar='N',
+                               help='''N trials displayed in a block, i.e.
+                                       the same sequence will be displayed
+                                       N times in that block, with waitscreens
+                                       in between''')
+    mkexp_parser.add_argument('-f', '--flags',
                                help='''flags passed to the display command
                                        that should be used when the block
                                        file is run (enclose in quotes and use
                                        '+' or '++' in place of '-' or '--')''')
 
-    def help_mkblks(self):
-        self.__class__.mkblks_parser.print_help()
+    def help_mkexp(self):
+        self.__class__.mkexp_parser.print_help()
 
-    def do_mkblks(self, line):
-        """Generates randomized experimental blocks from display groups."""
+    def do_mkexp(self, line):
+        """Creates checkergen experiment file."""
         if self.cur_proj == None:
             print 'please create or open a project first'
             return
 
         try:
-            args = self.__class__.mkblks_parser.parse_args(shlex.split(line))
+            args = self.__class__.mkexp_parser.parse_args(shlex.split(line))
         except (CmdParserError, ValueError):
             print "error:", str(sys.exc_value)
-            self.__class__.mkblks_parser.print_usage()
+            self.__class__.mkexp_parser.print_usage()
             return
 
-        args.flags = args.flags.replace('+','-')
+        if args.trials == None:
+            print "number of trials:"
+            try:
+                args.trials = int(raw_input().strip())
+            except EOFError:
+                return
+
+        if args.flags != None:
+            args.flags = args.flags.replace('+','-')
+        else:
+            print "flags used with display command (leave blank if none):"
+            try:
+                args.flags = raw_input().strip().strip('"\'')
+            except EOFError:
+                return
+
         try:
             disp_args = self.__class__.display_parser.\
                 parse_args(shlex.split(args.flags))
@@ -1045,18 +1059,32 @@ class CkgCmd(cmd.Cmd):
             print "error: invalid flags to display command"
             print str(sys.exc_value)
             self.__class__.display_parser.print_usage()
-            return        
+            return
+
+        print "list of sequences to choose from in the format",\
+                "'id1,id2,id3;seq2;seq3;seq4':"
+        print "(default: reduced latin square)"
+        try:
+            seqs_str = raw_input().strip()
+            if seqs_str == '':
+                args.sequences = None
+            else:
+                args.sequences = [[int(i) for i in seq_str.split(',')]
+                                  for seq_str in seqs_str.split(';')]
+        except EOFError:
+            return
 
         try:
-            self.cur_proj.mkblks(args.length,
-                                 path=args.dir,
-                                 folder=args.folder,
-                                 flags=args.flags)
+            new_exp = core.CkgExp(name=args.name, proj=self.cur_proj,
+                                  trials=args.trials,
+                                  sequences=args.sequences,
+                                  flags=args.flags)
+            new_exp.save()
         except IOError:
             print "error:", str(sys.exc_value)
             return
 
-        print "Experimental blocks generated."
+        print "Experiment file created."
 
     def do_calibrate(self, line, query=False):
         """Calibrate subject for eyetracking, or load a calibration file."""

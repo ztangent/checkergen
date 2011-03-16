@@ -17,6 +17,7 @@ import os
 import sys
 import re
 import csv
+import random
 import itertools
 from xml.dom import minidom
 
@@ -28,8 +29,8 @@ import eyetracking
 from utils import *
 
 CKG_FMT = 'ckg'
-EXP_FMT = 'exp'
-LOG_FMT = 'log'
+EXP_FMT = 'cxp'
+LOG_FMT = 'clg'
 XML_NAMESPACE = 'http://github.com/ZOMGxuan/checkergen'
 MAX_EXPORT_FRAMES = 100000
 PRERENDER_TO_TEXTURE = False
@@ -741,7 +742,7 @@ class CkgProj:
 
 class CkgExp:
 
-    DEFAULTS = {'name': 'untitled', 'proj' : None, 
+    DEFAULTS = {'name': None, 'proj' : None, 
                 'trials': 1, 'sequences': None,
                 'flags': '--fullscreen --logtime --logdur'}
 
@@ -776,7 +777,7 @@ class CkgExp:
             else:
                 setattr(self, kw, self.__class__.DEFAULTS[kw])
 
-        if 'name' not in keywords.keys() and self.proj != None:
+        if self.name == None and self.proj != None:
             self.name = self.proj.name
 
         if self.sequences == None:
@@ -793,6 +794,12 @@ class CkgExp:
         sequence = range(n)
         self.sequences = [[sequence[i - j] for i in range(n)] 
                           for j in range(n, 0, -1)]
+
+    def get_idlist(self):
+        """Choose random sequence, create idlist from it and return."""
+        sequence = random.choice(self.sequences)
+        idlist = ([-1] + sequence) * self.trials
+        return idlist
 
     def save(self, path=None):
         """Saves experiment to specified path as a CSV file."""
@@ -815,7 +822,7 @@ class CkgExp:
                 expwriter.writerow(sequence)
 
     def load(self, path):
-        """Loads project from specified path."""
+        """Loads experiment from specified path."""
 
         # Get project name from filename
         name, ext = os.path.splitext(os.path.basename(path))
