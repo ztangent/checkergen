@@ -875,8 +875,8 @@ class CkgCmd(cmd.Cmd):
                     return
 
         if args.priority != None:
-            if not priority.available:
-                print "error: setting priority not avaible on", sys.platform
+            if not priority.available[sys.platform]:
+                print "error: setting priority not available on", sys.platform
                 print "continuing..."
             else:
                 if args.priority.isdigit():
