@@ -1050,6 +1050,9 @@ class CkgCmd(cmd.Cmd):
                 args.trials = int(raw_input().strip())
             except EOFError:
                 return
+            except ValueError:
+                print "error:", str(sys.exc_value)
+                return
 
         if args.flags != None:
             args.flags = args.flags.replace('+','-')
