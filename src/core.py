@@ -365,6 +365,7 @@ class CkgProj:
             tracked = False
             old_tracked = False
             cur_fix_fail = False
+            trycount = 0
             fail_idlist = []
             eyetracking.select_source(etuser, etvideo)
             eyetracking.start()
@@ -494,19 +495,18 @@ class CkgProj:
                 if not cur_fix_fail and groupq[n].visible and\
                     (tracked and not fixated):
                     cur_fix_fail = True
-                    if len(fail_idlist) == 0 and trybreak > 0:
-                        groupq.append(CkgWaitScreen(res=self.res))
-                    fail_idlist.append(self.groups.index(groupq[n]))
                     # Append failed group to group queue
-                    if tryagain > 0:
-                        groupq.append(groupq[n])
-                        groups_stop += groupq[n].duration() * self.fps
-                        disp_end += groupq[n].duration() * self.fps
+                    if trycount < tryagain:
                         # Insert waitscreen every trybreak failed groups
                         if trybreak > 0:
                             if len(fail_idlist) % trybreak == 0:
                                 groupq.append(CkgWaitScreen())
-                        tryagain -= 1
+                        groupq.append(groupq[n])
+                        groups_stop += groupq[n].duration() * self.fps
+                        disp_end += groupq[n].duration() * self.fps
+                        trycount += 1
+                    # Maintain list of failed IDs
+                    fail_idlist.append(self.groups.index(groupq[n]))
 
             # Change cross color based on time if eyetracking is not enabled
             if not eyetrack:
@@ -567,7 +567,8 @@ class CkgProj:
             if logdur:
                 blk.durstamps = durstamps
             if eyetrack and len(fail_idlist) > 0:
-                blk.fail_idlist = fail_idlist
+                blk.add_idlist = fail_idlist[:tryagain]
+                blk.fail_idlist = fail_idlist[tryagain:]
 
     def export(self, export_dir, export_duration, groupq=[],
                export_fmt=None, folder=True, force=False):
@@ -780,6 +781,7 @@ class CkgBlk:
         self.flags = flags
         self.trials = trials
         self.sequence = sequence
+        self.add_idlist = None
         self.fail_idlist = None
         self.timestamps = []
         self.durstamps = []
@@ -807,8 +809,13 @@ class CkgBlk:
             blkwriter.writerow(['flags:', self.flags])
             blkwriter.writerow(['trials:', self.trials])
             blkwriter.writerow(['sequence:'] + self.sequence)
+            if self.add_idlist != None:
+                blkwriter.writerow(['groups appended:'])
+                rowlist = grouper(len(self.sequence), self.add_idlist, '')
+                for row in rowlist:
+                    blkwriter.writerow(row)
             if self.fail_idlist != None:
-                blkwriter.writerow(['groups added:'])
+                blkwriter.writerow(['groups failed (not appended):'])
                 rowlist = grouper(len(self.sequence), self.fail_idlist, '')
                 for row in rowlist:
                     blkwriter.writerow(row)
