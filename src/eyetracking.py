@@ -87,7 +87,8 @@ if available:
         if not is_source_ready():
             select_source()
         if not VET.Tracking:
-            start()
+            VET.ClearDataBuffer()
+            VET.StartTracking()
         if path == None:
             if not VET.Calibrate():
                 msg = 'calibration failed'
