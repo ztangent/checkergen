@@ -24,7 +24,7 @@ from xml.dom import minidom
 import pyglet
 
 import graphics
-import signals
+import trigger
 import eyetracking
 from utils import *
 
@@ -270,7 +270,7 @@ class CkgProj:
         return path
 
     def display(self, fullscreen=False, logtime=False, logdur=False,
-                sigser=False, sigpar=False, fpbs=0,
+                trigser=False, trigpar=False, fpst=0,
                 phototest=False, photoburst=False,
                 eyetrack=False, etuser=False, etvideo=None,
                 tryagain=0, trybreak=None, groupq=[], blk=None):
@@ -283,12 +283,12 @@ class CkgProj:
 
         logdur -- duration of each frame is saved to a logfile if true
 
-        sigser -- send signals through serial port when each group is shown
+        trigser -- send triggers through serial port when each group is shown
 
-        sigpar -- send signals through parallel port when each group is shown
+        trigpar -- send triggers through parallel port when each group is shown
 
-        fpbs -- flips per board signal, i.e. number of shape color reversals
-        (flips) that occur for a unique signal to be sent for that shape
+        fpst -- flips per shape trigger, i.e. number of shape color reversals
+        (flips) that occur for a unique trigger to be sent for that shape
 
         phototest -- draw white rectangle in topleft corner when each group is
         shown for photodiode to detect
@@ -343,15 +343,15 @@ class CkgProj:
         count = 0
 
         # Initialize ports
-        if sigser:
-            if not signals.available['serial']:
+        if trigser:
+            if not trigger.available['serial']:
                 msg = 'serial port functionality not available'
                 raise NotImplementedError(msg)
-        if sigpar:
-            if not signals.available['parallel']:
+        if trigpar:
+            if not trigger.available['parallel']:
                 msg = 'parallel port functionality not available'
                 raise NotImplementedError(msg)
-        signals.init(sigser, sigpar)
+        trigger.init(trigser, trigpar)
 
         # Initialize eyetracking
         if eyetrack:
@@ -401,7 +401,7 @@ class CkgProj:
         # Initialize logging variables
         if logtime:
             timestamps = []
-            sigstamps = []
+            trigstamps = []
             timer = Timer()
             timer.start()
         if logdur:
@@ -420,7 +420,6 @@ class CkgProj:
 
             # Assume no change to group visibility
             flipped = 0
-            signals.set_null()
  
             # Manage groups when they are on_screen
             if groups_visible:
@@ -433,12 +432,13 @@ class CkgProj:
                         flipped = -1
                 # Get next group from queue
                 if n < 0 or groupq[n].over:
-                    # Send special signal if waitscreen ends
+                    # Send special trigger if waitscreen ends
                     if isinstance(groupq[n], CkgWaitScreen):
-                        signals.set_user_start()
+                        trigger.CUR_STATE['user'] = 1
                     n += 1
                     if n >= len(groupq):
                         groups_visible = False
+                        trigger.CUR_STATE['user'] = 0
                     else:
                         groupq[n].reset()
                         if eyetrack:
@@ -446,34 +446,37 @@ class CkgProj:
                         if groupq[n].visible:
                             flip_id = self.groups.index(groupq[n])
                             flipped = 1
+                        # Send special trigger when waitscreen ends
+                        if isinstance(groupq[n], CkgWaitScreen):
+                            trigger.CUR_STATE['user'] = 0
                 # Draw and then update group
                 if n >= 0:
                     groupq[n].draw(photoburst=photoburst)
                     groupq[n].update(fps=self.fps,
-                                     fpbs=fpbs,
+                                     fpst=fpst,
                                      keystates=keystates)
 
-            # Send signals upon group visibility change
+            # Send triggers upon group visibility change
             if flipped == 1:
-                signals.set_group_start(flip_id)
+                trigger.CUR_STATE['group'] = 1
                 # Draw test rectangle
                 if phototest:
                     test_rect.draw()
             elif flipped == -1:
-                signals.set_group_stop(flip_id)
+                trigger.CUR_STATE['group'] = 0
 
             if eyetrack:
-                # First check if eye is being tracked and send signals
+                # First check if eye is being tracked and send trigger
                 old_tracked = tracked
                 tracked = eyetracking.is_tracked()
                 if tracked:
                     if not old_tracked:
-                        # Send signal if eye starts being tracked
-                        signals.set_track_start()
+                        # Send trigger if eye starts being tracked
+                        trigger.set_track_start()
                 else:
                     if old_tracked:
-                        # Send signal if eye stops being tracked
-                        signals.set_track_stop()
+                        # Send trigger if eye stops being tracked
+                        trigger.set_track_stop()
 
                 # Next check for fixation
                 old_fixated = fixated
@@ -482,14 +485,14 @@ class CkgProj:
                     # Draw normal cross color if fixating
                     fix_crosses[0].draw()
                     if not old_fixated:
-                        # Send signal if fixation starts
-                        signals.set_fix_start()
+                        # Send trigger if fixation starts
+                        trigger.set_fix_start()
                 else:
                     # Draw alternative cross color if not fixating
                     fix_crosses[1].draw()
                     if old_fixated:
-                        # Send signal if fixation stops
-                        signals.set_fix_stop()
+                        # Send trigger if fixation stops
+                        trigger.set_fix_stop()
 
                 # Take note of which groups in which fixation failed
                 if not cur_fix_fail and groupq[n].visible and\
@@ -540,15 +543,15 @@ class CkgProj:
             if logdur:
                 durstamps.append(dur.restart())
 
-            # Send signals ASAP after flip
-            signals.send(sigser, sigpar)
+            # Send trigger ASAP after flip
+            trigger.send(trigser, trigpar)
 
-            # Log when signals are sent
+            # Log when trigger are sent
             if logtime:
-                if flipped != 0 and (sigser or sigpar):
-                    sigstamps.append(signals.STATE)
+                if flipped != 0 and (trigser or trigpar):
+                    trigstamps.append(trigger.STATE)
                 else:
-                    sigstamps.append('')
+                    trigstamps.append('')
 
         # Clean up
         if eyetrack:
@@ -557,13 +560,13 @@ class CkgProj:
         if scaling:
             fbo.delete()
             del canvas
-        signals.quit(sigser, sigpar)
+        trigger.quit(trigser, trigpar)
 
         # Store variables in block object
         if blk != None:
             if logtime:
                 blk.timestamps = timestamps
-                blk.sigstamps = sigstamps
+                blk.trigstamps = trigstamps
             if logdur:
                 blk.durstamps = durstamps
             if eyetrack and len(fail_idlist) > 0:
@@ -636,7 +639,7 @@ class CkgProj:
                 # Draw and then update group
                 if n >= 0:
                     groupq[n].draw()
-                    groupq[n].update(fps=self.fps, fpbs=0)
+                    groupq[n].update(fps=self.fps, fpst=0)
 
             # Draw fixation cross based on current count
             if (count % (sum(self.cross_times) * self.fps) 
@@ -785,7 +788,7 @@ class CkgBlk:
         self.fail_idlist = None
         self.timestamps = []
         self.durstamps = []
-        self.sigstamps = []
+        self.trigstamps = []
 
     def idlist(self):
         """Generate idlist from sequence and return it."""
@@ -819,7 +822,7 @@ class CkgBlk:
                 rowlist = grouper(len(self.sequence), self.fail_idlist, '')
                 for row in rowlist:
                     blkwriter.writerow(row)
-            stamps = [self.timestamps, self.durstamps, self.sigstamps]
+            stamps = [self.timestamps, self.durstamps, self.trigstamps]
             if len(max(stamps)) > 0:
                 for l in stamps:
                     if len(l) == 0:
@@ -894,22 +897,23 @@ class CkgDisplayGroup:
 
         fps -- refresh rate of the display in frames per second
 
-        fpbs -- flips per board signal, i.e. number of shape color reversals
-        (flips) that occur for a unique signal to be sent for that shape
+        fpst -- flips per shape trigger, i.e. number of shape color reversals
+        (flips) that occur for a unique trigger to be sent for that shape
 
         """
 
         fps = keywords['fps']
-        fpbs = keywords['fpbs']
+        fpst = keywords['fpst']
                 
         if self.visible:
             # Set triggers to be sent
-            if fpbs > 0:
+            if fpst > 0:
                 for n, shape in enumerate(self.shapes):
                     if shape.flipped:
                         self._flip_count[n] += 1
-                    if self._flip_count[n] >= fpbs:
-                        signals.set_board_flip(n)
+                    if self._flip_count[n] >= fpst:
+                        trigger.CUR_STATE['shape'] = 1
+                        trigger.CUR_STATE['sid'] = n
                         self._flip_count[n] = 0
             # Update contained shapes
             for shape in self.shapes:
@@ -1014,7 +1018,7 @@ class CkgWaitScreen(CkgDisplayGroup):
         self.labels[self.steps_done].draw()
 
     def update(self, **keywords):
-        """Checks for keypress, sends signal upon end."""
+        """Checks for keypress, sends trigger upon end."""
         
         keystates = keywords['keystates']
 

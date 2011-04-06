@@ -770,14 +770,14 @@ class CkgCmd(cmd.Cmd):
                                 help='output frame timestamps to a log file')
     display_parser.add_argument('-ld', '--logdur', action='store_true',
                                 help='output frame durations to a log file')
-    display_parser.add_argument('-ss', '--sigser', action='store_true',
-                                help='''send signals through the serial port 
+    display_parser.add_argument('-ss', '--trigser', action='store_true',
+                                help='''send triggers through the serial port 
                                         when shapes are being displayed''')
-    display_parser.add_argument('-sp', '--sigpar', action='store_true',
-                                help='''send signals through the parallel port 
+    display_parser.add_argument('-sp', '--trigpar', action='store_true',
+                                help='''send triggers through the parallel port
                                         when shapes are being displayed''')
     display_parser.add_argument('-fpbs', metavar='M', type=int, default=0,
-                                help='''unique signal corresponding to a
+                                help='''unique trigger corresponding to a
                                         checkerboard is sent after the board
                                         undergoes M color flips (default:
                                         disabled, M=0)''')
@@ -892,8 +892,8 @@ class CkgCmd(cmd.Cmd):
             self.cur_proj.display(fullscreen=args.fullscreen,
                                   logtime=args.logtime,
                                   logdur=args.logdur,
-                                  sigser=args.sigser,
-                                  sigpar=args.sigpar,
+                                  trigser=args.trigser,
+                                  trigpar=args.trigpar,
                                   fpbs=args.fpbs,
                                   phototest=args.phototest,
                                   photoburst=args.photoburst,
