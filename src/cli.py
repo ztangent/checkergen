@@ -776,9 +776,9 @@ class CkgCmd(cmd.Cmd):
     display_parser.add_argument('-sp', '--trigpar', action='store_true',
                                 help='''send triggers through the parallel port
                                         when shapes are being displayed''')
-    display_parser.add_argument('-fpbs', metavar='M', type=int, default=0,
+    display_parser.add_argument('-fpst', metavar='M', type=int, default=0,
                                 help='''unique trigger corresponding to a
-                                        checkerboard is sent after the board
+                                        checkerboard is sent after the shape
                                         undergoes M color flips (default:
                                         disabled, M=0)''')
     display_parser.add_argument('-et', '--eyetrack', action='store_true',
@@ -894,7 +894,7 @@ class CkgCmd(cmd.Cmd):
                                   logdur=args.logdur,
                                   trigser=args.trigser,
                                   trigpar=args.trigpar,
-                                  fpbs=args.fpbs,
+                                  fpst=args.fpst,
                                   phototest=args.phototest,
                                   photoburst=args.photoburst,
                                   eyetrack=args.eyetrack,
