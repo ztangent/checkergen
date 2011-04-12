@@ -39,6 +39,10 @@ def to_color(s, sep=','):
         raise ValueError
     return c
 
+def cyclic_permute(self, sequence):
+    """Return a list of all cyclic permutations of supplied sequence."""
+    return [[sequence[i - j] for i in range(n)] for j in range(n, 0, -1)]
+
 # From itertools documentation
 def grouper(n, iterable, fillvalue=None):
     """grouper(3, 'ABCDEFG', 'x') --> ABC DEF Gxx"""

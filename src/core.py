@@ -93,7 +93,24 @@ class CkgProj:
                             ('pre',  0),
                             ('post',  0),
                             ('cross_cols',  ((0, 0, 0), (255, 0, 0))),
-                            ('cross_times',  ('Infinity', 1))])
+                            ('cross_times',  ('Infinity', 1)),
+                            ('orders', []),
+                            ('disp_ops', None)])
+
+    DEFAULTS['disp_ops'] = OrderedDict([('fullscreen', False),
+                                        ('priority', 0),
+                                        ('logtime', False),
+                                        ('logdur', False),
+                                        ('trigser', False),
+                                        ('trigpar', False),
+                                        ('fpst', 0),
+                                        ('phototest', False),
+                                        ('photoburst', False),
+                                        ('eyetrack', False),
+                                        ('etuser', False),
+                                        ('etvideo', None),
+                                        ('tryagain', 0),
+                                        ('trybreak', None)])
 
     def __init__(self, **keywords):
         """Initializes a new project, or loads it from a path.
@@ -226,7 +243,12 @@ class CkgProj:
             doc = minidom.parse(project_file)
 
         project = doc.documentElement
-        vars_to_load = self.__class__.DEFAULTS.keys()
+        # Vars that are dicts
+        dicts_to_load = [var for var in self.__class__.DEFAULTS.keys() if
+                         isinstance(self.__class__.DEFAULTS[var], dict)]
+        # Vars that are not dicts
+        vars_to_load = [var for var in self.__class__.DEFAULTS.keys() if not
+                        isinstance(self.__class__.DEFAULTS[var], dict)]
         # Name is not stored in project file
         vars_to_load.remove('name')
         for var in vars_to_load:
@@ -237,6 +259,24 @@ class CkgProj:
                 value = self.__class__.DEFAULTS[var]
                 print "using default value '{0}' instead...".format(value)
             setattr(self, var, value)
+        for d_name in dicts_to_load:
+            d = self.__class__.DEFAULTS[d_name]
+            try:
+                d_el = [node for node in project.childNodes if
+                        node.localName == d_name and
+                        node.namespaceURI == XML_NAMESPACE][0]
+                for var in d.keys():
+                    try:
+                        d[var] = eval(xml_get(d_el, XML_NAMESPACE, var))
+                    except IndexError:
+                        print "warning: missing attribute '{0}' in '{1}'".\
+                            format(var, d_name)
+                        print "using default value '{0}' instead...".\
+                            format(d[var])
+            except IndexError:
+                print "warning: missing attribute set '{0}'".format(d_name)
+                print "using default values instead..."
+            setattr(self, d_name, d)
         self.groups = []
         group_els = [node for node in project.childNodes if
                      node.localName == 'group' and
@@ -260,11 +300,22 @@ class CkgProj:
         project = doc.documentElement
         # Hack below because minidom doesn't support namespaces properly
         project.setAttribute('xmlns', XML_NAMESPACE)
-        vars_to_save = self.__class__.DEFAULTS.keys()
+        # Vars that are dicts
+        dicts_to_save = [var for var in self.__class__.DEFAULTS.keys() if
+                         isinstance(self.__class__.DEFAULTS[var], dict)]
+        # Vars that are not dicts
+        vars_to_save = [var for var in self.__class__.DEFAULTS.keys() if not
+                        isinstance(self.__class__.DEFAULTS[var], dict)]
         # Name is not stored in project file
         vars_to_save.remove('name')
         for var in vars_to_save:
             xml_set(doc, project, var, repr(getattr(self, var)))
+        for d_name in dicts_to_save:
+            d_el = doc.createElement(d_name)
+            project.appendChild(d_el)
+            d = getattr(self, d_name)
+            for k, v in d.iteritems():
+                xml_set(doc, d_el, k, repr(v))
         for group in self.groups:
             group.save(doc, project)
         with open(path, 'w') as project_file:

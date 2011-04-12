@@ -8,6 +8,23 @@
     <post>Decimal('0')</post>
     <cross_cols>((0, 0, 0), (255, 0, 0))</cross_cols>
     <cross_times>(Decimal('Infinity'), Decimal('1'))</cross_times>
+    <orders>[]</orders>
+    <disp_ops>
+        <fullscreen>False</fullscreen>
+        <priority>0</priority>
+        <logtime>False</logtime>
+        <logdur>False</logdur>
+        <trigser>False</trigser>
+        <trigpar>False</trigpar>
+        <fpst>0</fpst>
+        <phototest>False</phototest>
+        <photoburst>False</photoburst>
+        <eyetrack>False</eyetrack>
+        <etuser>False</etuser>
+        <etvideo>None</etvideo>
+        <tryagain>0</tryagain>
+        <trybreak>None</trybreak>
+    </disp_ops>
     <group>
         <pre>Decimal('2')</pre>
         <disp>Decimal('10')</disp>
