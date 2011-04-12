@@ -1,56 +1,56 @@
 <?xml version="1.0" ?>
 <project xmlns="http://github.com/ZOMGxuan/checkergen">
+    <fps>Decimal('60')</fps>
+    <res>(800, 600)</res>
+    <bg>(127, 127, 127)</bg>
     <export_fmt>'png'</export_fmt>
     <pre>Decimal('0')</pre>
-    <bg>(127, 127, 127)</bg>
-    <fps>Decimal('60')</fps>
-    <cross_cols>((0, 0, 0), (255, 0, 0))</cross_cols>
-    <res>(800, 600)</res>
     <post>Decimal('0')</post>
+    <cross_cols>((0, 0, 0), (255, 0, 0))</cross_cols>
     <cross_times>(Decimal('Infinity'), Decimal('1'))</cross_times>
     <group>
         <pre>Decimal('2')</pre>
         <disp>Decimal('10')</disp>
         <post>Decimal('2')</post>
         <shape type="board">
-            <end_unit>(Decimal('50'), Decimal('50'))</end_unit>
             <dims>(5, 5)</dims>
-            <phase>Decimal('0')</phase>
+            <init_unit>(Decimal('40'), Decimal('40'))</init_unit>
+            <end_unit>(Decimal('50'), Decimal('50'))</end_unit>
             <position>(Decimal('420'), Decimal('320'))</position>
-            <freq>Decimal('1')</freq>
             <anchor>'bottomleft'</anchor>
-            <init_unit>(Decimal('40'), Decimal('40'))</init_unit>
             <cols>((0, 0, 0), (255, 255, 255))</cols>
+            <freq>Decimal('1')</freq>
+            <phase>Decimal('0')</phase>
         </shape>
         <shape type="board">
-            <end_unit>(Decimal('50'), Decimal('50'))</end_unit>
             <dims>(5, 5)</dims>
-            <phase>Decimal('90')</phase>
+            <init_unit>(Decimal('40'), Decimal('40'))</init_unit>
+            <end_unit>(Decimal('50'), Decimal('50'))</end_unit>
             <position>(Decimal('380'), Decimal('320'))</position>
-            <freq>Decimal('2')</freq>
             <anchor>'bottomright'</anchor>
-            <init_unit>(Decimal('40'), Decimal('40'))</init_unit>
             <cols>((0, 0, 0), (255, 255, 255))</cols>
+            <freq>Decimal('2')</freq>
+            <phase>Decimal('90')</phase>
         </shape>
         <shape type="board">
-            <end_unit>(Decimal('50'), Decimal('50'))</end_unit>
             <dims>(5, 5)</dims>
-            <phase>Decimal('180')</phase>
+            <init_unit>(Decimal('40'), Decimal('40'))</init_unit>
+            <end_unit>(Decimal('50'), Decimal('50'))</end_unit>
             <position>(Decimal('420'), Decimal('280'))</position>
-            <freq>Decimal('3')</freq>
             <anchor>'topleft'</anchor>
-            <init_unit>(Decimal('40'), Decimal('40'))</init_unit>
             <cols>((0, 0, 0), (255, 255, 255))</cols>
+            <freq>Decimal('3')</freq>
+            <phase>Decimal('180')</phase>
         </shape>
         <shape type="board">
-            <end_unit>(Decimal('50'), Decimal('50'))</end_unit>
             <dims>(5, 5)</dims>
-            <phase>Decimal('270')</phase>
-            <position>(Decimal('380'), Decimal('280'))</position>
-            <freq>Decimal('4')</freq>
-            <anchor>'topright'</anchor>
             <init_unit>(Decimal('40'), Decimal('40'))</init_unit>
+            <end_unit>(Decimal('50'), Decimal('50'))</end_unit>
+            <position>(Decimal('380'), Decimal('280'))</position>
+            <anchor>'topright'</anchor>
             <cols>((0, 0, 0), (255, 255, 255))</cols>
+            <freq>Decimal('4')</freq>
+            <phase>Decimal('270')</phase>
         </shape>
     </group>
 </project>

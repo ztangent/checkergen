@@ -13,8 +13,6 @@ CheckerBoard -- A (distorted) checkerboard pattern, can color-flip.
 
 """
 
-# TODO: Use OrderedDicts with fallback for python 2.6
-
 import os
 import sys
 import re
@@ -29,6 +27,12 @@ import graphics
 import trigger
 import eyetracking
 from utils import *
+
+# Use OrderedDict substitute if we don't have Python 2.7
+if sys.version_info < (2, 7):
+    from odict import OrderedDict
+else:
+    from collections import OrderedDict
 
 CKG_FMT = 'ckg'
 EXP_FMT = 'ckx'
@@ -81,15 +85,15 @@ class FrameOverflowError(Exception):
 class CkgProj:
     """Defines a checkergen project, with checkerboards and other settings."""
 
-    DEFAULTS = {'name': 'untitled',
-                'fps': 60,
-                'res': (800, 600),
-                'bg': (127, 127, 127),
-                'export_fmt': 'png',
-                'pre': 0,
-                'post': 0,
-                'cross_cols': ((0, 0, 0), (255, 0, 0)),
-                'cross_times': ('Infinity', 1)}
+    DEFAULTS = OrderedDict([('name', 'untitled'),
+                            ('fps',  60),
+                            ('res',  (800, 600)),
+                            ('bg',  (127, 127, 127)),
+                            ('export_fmt',  'png'),
+                            ('pre',  0),
+                            ('post',  0),
+                            ('cross_cols',  ((0, 0, 0), (255, 0, 0))),
+                            ('cross_times',  ('Infinity', 1))])
 
     def __init__(self, **keywords):
         """Initializes a new project, or loads it from a path.
@@ -834,7 +838,7 @@ class CkgRun:
 
 class CkgDisplayGroup:
 
-    DEFAULTS = {'pre': 0, 'disp': 'Infinity', 'post': 0}
+    DEFAULTS = OrderedDict([('pre',  0), ('disp',  'Infinity'), ('post',  0)])
 
     def __init__(self, **keywords):
         """Create a new group of shapes to be displayed together.
@@ -1038,11 +1042,14 @@ class CheckerDisc(CheckerShape):
         
 class CheckerBoard(CheckerShape):
 
-    DEFAULTS = {'dims': (5, 5),
-                'init_unit': (30, 30), 'end_unit': (50, 50),
-                'position': (0, 0), 'anchor': 'bottomleft',
-                'cols': ((0, 0, 0), (255, 255, 255)),
-                'freq': 1, 'phase': 0}
+    DEFAULTS = OrderedDict([('dims',  (5, 5)),
+                            ('init_unit',  (30, 30)),
+                            ('end_unit',  (50, 50)),
+                            ('position',  (0, 0)),
+                            ('anchor',  'bottomleft'),
+                            ('cols',  ((0, 0, 0), (255, 255, 255))),
+                            ('freq', 1),
+                            ('phase', 0)])
 
     # TODO: Reimplement mid/center anchor functionality in cool new way
 
