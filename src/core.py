@@ -13,6 +13,8 @@ CheckerBoard -- A (distorted) checkerboard pattern, can color-flip.
 
 """
 
+# TODO: Use OrderedDicts with fallback for python 2.6
+
 import os
 import sys
 import re
@@ -37,7 +39,6 @@ PRERENDER_TO_TEXTURE = False
 INT_HALF_PERIODS = True
 EXPORT_FMTS = ['png']
 EXPORT_DIR_SUFFIX = '-anim'
-BLOCK_DIR_SUFFIX = '-blks'
 FIX_POS = (0, 0)
 FIX_RANGE = (20, 20)
 FIX_PER = 350
@@ -273,7 +274,7 @@ class CkgProj:
                 trigser=False, trigpar=False, fpst=0,
                 phototest=False, photoburst=False,
                 eyetrack=False, etuser=False, etvideo=None,
-                tryagain=0, trybreak=None, groupq=[], blk=None):
+                tryagain=0, trybreak=None, groupq=[], run=None):
         """Displays the project animation on the screen.
 
         fullscreen -- animation is displayed fullscreen if true, stretched
@@ -311,7 +312,7 @@ class CkgProj:
         groupq -- queue of groups to be displayed, defaults to order of
         groups in project (i.e. groups[0] first, etc.)
 
-        blk -- experimental block where logged variables are saved (i.e.
+        run -- experimental run where logged variables are saved (i.e.
         fail_idlist and time information)
 
         """
@@ -562,16 +563,16 @@ class CkgProj:
             del canvas
         trigger.quit(trigser, trigpar)
 
-        # Store variables in block object
-        if blk != None:
+        # Store variables in run object
+        if run != None:
             if logtime:
-                blk.timestamps = timestamps
-                blk.trigstamps = trigstamps
+                run.timestamps = timestamps
+                run.trigstamps = trigstamps
             if logdur:
-                blk.durstamps = durstamps
+                run.durstamps = durstamps
             if eyetrack and len(fail_idlist) > 0:
-                blk.add_idlist = fail_idlist[:tryagain]
-                blk.fail_idlist = fail_idlist[tryagain:]
+                run.add_idlist = fail_idlist[:tryagain]
+                run.fail_idlist = fail_idlist[tryagain:]
 
     def export(self, export_dir, export_duration, groupq=[],
                export_fmt=None, folder=True, force=False):
@@ -668,7 +669,7 @@ class CkgProj:
 class CkgExp:
 
     DEFAULTS = {'name': None, 'proj' : None, 
-                'trials': 1, 'sequences': None,
+                'blocks': 1, 'sequences': None,
                 'flags': '--fullscreen --logtime --logdur'}
 
     def __init__(self, **keywords):
@@ -682,11 +683,11 @@ class CkgExp:
 
         proj -- CkgProj that the experiment is to be created for
 
-        trials -- number of times the selected sequence of display groups
-        will be shown in one block
+        blocks -- number of times the selected sequence of display groups
+        will be shown in one run
 
         sequences -- list of possible display group id sequences, from which
-        one sequence will be randomly  selected for display in a block,
+        one sequence will be randomly  selected for display in a run,
         defaults to reduced latin square with side length equal to the number
         of display groups in the supplied CkgProj
 
@@ -720,14 +721,14 @@ class CkgExp:
         self.sequences = [[sequence[i - j] for i in range(n)] 
                           for j in range(n, 0, -1)]
 
-    def random_blk(self, name):
-        """Choose random sequence, create block from it and return."""
+    def random_run(self, name):
+        """Choose random sequence, create run from it and return."""
         sequence = random.choice(self.sequences)
-        blk = CkgBlk(name=name,
+        run = CkgRun(name=name,
                      flags=self.flags,
-                     trials=self.trials,
+                     blocks=self.blocks,
                      sequence=sequence)
-        return blk
+        return run
 
     def save(self, path=None):
         """Saves experiment to specified path in the CSV format."""
@@ -744,7 +745,7 @@ class CkgExp:
             expwriter = csv.writer(expfile, dialect='excel-tab')
             expwriter.writerow(['checkergen experiment file'])
             expwriter.writerow(['flags:', self.flags])
-            expwriter.writerow(['trials:', self.trials])
+            expwriter.writerow(['blocks:', self.blocks])
             expwriter.writerow(['sequences:'])
             for sequence in self.sequences:
                 expwriter.writerow(sequence)
@@ -771,18 +772,18 @@ class CkgExp:
                 if n == 1:
                     self.flags = row[1]
                 elif n == 2:
-                    self.trials = int(row[1])
+                    self.blocks = int(row[1])
                 elif n > 3:
                     sequence = [int(i) for i in row]
                     self.sequences.append(sequence)
  
-class CkgBlk:
+class CkgRun:
 
-    def __init__(self, name, flags, trials, sequence):
-        """Creates an experimental block."""
+    def __init__(self, name, flags, blocks, sequence):
+        """Creates an experimental run."""
         self.name = name
         self.flags = flags
-        self.trials = trials
+        self.blocks = blocks
         self.sequence = sequence
         self.add_idlist = None
         self.fail_idlist = None
@@ -792,11 +793,11 @@ class CkgBlk:
 
     def idlist(self):
         """Generate idlist from sequence and return it."""
-        idlist = ([-1] + self.sequence) * self.trials
+        idlist = ([-1] + self.sequence) * self.blocks
         return idlist
 
     def write_log(self, path=None):
-        """Write a log file for the experimental block in the CSV format."""
+        """Write a log file for the experimental run in the CSV format."""
 
         if path == None:
             path = os.path.join(os.getcwd(),
@@ -806,30 +807,30 @@ class CkgBlk:
             if ext != '.{0}'.format(LOG_FMT):
                 path = '{0}.{1}'.format(path, LOG_FMT)
 
-        with open(path, 'wb') as blkfile:
-            blkwriter = csv.writer(blkfile, dialect='excel-tab')
-            blkwriter.writerow(['checkergen log file'])
-            blkwriter.writerow(['flags:', self.flags])
-            blkwriter.writerow(['trials:', self.trials])
-            blkwriter.writerow(['sequence:'] + self.sequence)
+        with open(path, 'wb') as runfile:
+            runwriter = csv.writer(runfile, dialect='excel-tab')
+            runwriter.writerow(['checkergen log file'])
+            runwriter.writerow(['flags:', self.flags])
+            runwriter.writerow(['blocks:', self.blocks])
+            runwriter.writerow(['sequence:'] + self.sequence)
             if self.add_idlist != None:
-                blkwriter.writerow(['groups appended:'])
+                runwriter.writerow(['groups appended:'])
                 rowlist = grouper(len(self.sequence), self.add_idlist, '')
                 for row in rowlist:
-                    blkwriter.writerow(row)
+                    runwriter.writerow(row)
             if self.fail_idlist != None:
-                blkwriter.writerow(['groups failed (not appended):'])
+                runwriter.writerow(['groups failed (not appended):'])
                 rowlist = grouper(len(self.sequence), self.fail_idlist, '')
                 for row in rowlist:
-                    blkwriter.writerow(row)
+                    runwriter.writerow(row)
             stamps = [self.timestamps, self.durstamps, self.trigstamps]
             if len(max(stamps)) > 0:
                 for l in stamps:
                     if len(l) == 0:
                         l = [''] * len(max(stamps))
-                blkwriter.writerow(['timestamps', 'durations', 'triggers'])
+                runwriter.writerow(['timestamps', 'durations', 'triggers'])
                 for row in zip(*stamps):
-                    blkwriter.writerow(row)
+                    runwriter.writerow(row)
 
 class CkgDisplayGroup:
 

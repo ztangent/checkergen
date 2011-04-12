@@ -833,20 +833,20 @@ class CkgCmd(cmd.Cmd):
                 args = self.__class__.\
                     display_parser.parse_args(shlex.split(exp.flags))
             except (CmdParserError, ValueError):
-                print 'error: invalid flags stored in block file'
+                print 'error: invalid flags stored in run file'
                 return
             try:
                 print """name of log file (default: experiment name):"""
-                blkname = raw_input().strip().strip('"\'')
+                runname = raw_input().strip().strip('"\'')
             except EOFError:
                 return
-            if blkname == '':
-                blkname == exp.name
-            blk = exp.random_blk(blkname)
-            args.idlist = blk.idlist()
+            if runname == '':
+                runname == exp.name
+            run = exp.random_run(runname)
+            args.idlist = run.idlist()
         else:
-            blk = core.CkgBlk(name=self.cur_proj.name,
-                              trials=None,
+            run = core.CkgRun(name=self.cur_proj.name,
+                              blocks=None,
                               flags=line,
                               sequence=[])
 
@@ -903,7 +903,7 @@ class CkgCmd(cmd.Cmd):
                                   tryagain=args.tryagain,
                                   trybreak=args.trybreak,
                                   groupq=groupq,
-                                  blk=blk)
+                                  run=run)
         except (IOError, NotImplementedError, eyetracking.EyetrackingError):
             print "error:", str(sys.exc_value)
             if args.priority != None:
@@ -920,7 +920,7 @@ class CkgCmd(cmd.Cmd):
                 pass
 
         try:
-            blk.write_log()
+            run.write_log()
         except IOError:
             print "error:", str(sys.exc_value)
             return
@@ -1017,14 +1017,14 @@ class CkgCmd(cmd.Cmd):
     mkexp_parser.add_argument('-n', '--name',
                                help='''name of the experiment (default: same
                                        name as current project)''')
-    mkexp_parser.add_argument('-t', '--trials', type=int, metavar='N',
-                               help='''N trials displayed in a block, i.e.
+    mkexp_parser.add_argument('-b', '--blocks', type=int, metavar='N',
+                               help='''N blocks displayed in a run, i.e.
                                        the same sequence will be displayed
-                                       N times in that block, with waitscreens
+                                       N times in that run, with waitscreens
                                        in between''')
     mkexp_parser.add_argument('-f', '--flags',
                                help='''flags passed to the display command
-                                       that should be used when the block
+                                       that should be used when the run
                                        file is run (enclose in quotes and use
                                        '+' or '++' in place of '-' or '--')''')
 
@@ -1044,10 +1044,10 @@ class CkgCmd(cmd.Cmd):
             self.__class__.mkexp_parser.print_usage()
             return
 
-        if args.trials == None:
-            print "number of trials:"
+        if args.blocks == None:
+            print "number of blocks:"
             try:
-                args.trials = int(raw_input().strip())
+                args.blocks = int(raw_input().strip())
             except EOFError:
                 return
             except ValueError:
@@ -1087,7 +1087,7 @@ class CkgCmd(cmd.Cmd):
 
         try:
             new_exp = core.CkgExp(name=args.name, proj=self.cur_proj,
-                                  trials=args.trials,
+                                  blocks=args.blocks,
                                   sequences=args.sequences,
                                   flags=args.flags)
             new_exp.save()

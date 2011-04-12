@@ -1,8 +1,9 @@
 """Module for sending triggers upon various events through the serial or 
 parallel ports."""
 
-NULL_STATE = {'user': 0, 'tracking': 0, 'fixation': 0,
-              'group': 0, 'shape': 0, 'gid': 0, 'sid': 0}
+NULL_STATE = {'block': 0, 'tracking': 0, 'fixation': 0,
+              'group': 0, 'shape': 0, 'gid': 0, 'sid': 0,
+              'event': 0}
 CUR_STATE = dict(NULL_STATE)
 PREV_STATE = dict(NULL_STATE)
 
@@ -79,21 +80,24 @@ def set_state(fieldname, value):
     global PREV_STATE
     PREV_STATE = CUR_STATE
     CUR_STATE[fieldname] = value
+    CUR_STATE['event'] = 1
     
 def set_null():
     set_state(NULL_STATE)
 
 def send(trigser, trigpar):
-    statebyte = int(''.join([str(CUR_STATE[name]) for 
-                             name in ['user', 'tracking', 
-                                      'fixation', 'group', 'shape']]), 2)
+    statebyte = ''.join([str(CUR_STATE[name]) for 
+                         name in ['block', 'tracking', 'fixation',
+                                  'group', 'shape']]).ljust(8,'0')
+    statebyte = int(statebyte, 2)
+    # Preferentially send group id over shape id
     if CUR_STATE['group'] != PREV_STATE['group']:
-        statebyte += CUR_STATE['gid']
+        statebyte += CUR_STATE['gid'] + 1
     elif CUR_STATE['shape'] > PREV_STATE['shape']:
         statebyte += CUR_STATE['sid']
-    if trigser:
-        ser_send(statebyte)
     if CUR_STATE != PREV_STATE:
+        if trigser:
+            ser_send(statebyte)
         if trigpar:
             par_send(statebyte)
 
