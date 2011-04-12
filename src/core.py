@@ -385,7 +385,7 @@ class CkgProj:
         # Count through post
 
         # Write log
-        runstate.write_log()
+        runstate.log()
 
     def export(self, export_dir, export_duration, groupq=[],
                export_fmt=None, folder=True, force=False):
@@ -681,7 +681,7 @@ class CkgRunState:
         if self.disp_ops['trigser'] or self.disp_ops['trigpar']:
             trigger.quit(trigser, trigpar)
 
-    def write_log(self, path=None):
+    def log(self, path=None):
         """Write a log file for the experimental run in the CSV format."""
 
         if path == None:
@@ -693,29 +693,29 @@ class CkgRunState:
                 path = '{0}.{1}'.format(path, LOG_FMT)
 
         with open(path, 'wb') as runfile:
-            runwriter = csv.writer(runfile, dialect='excel-tab')
-            runwriter.writerow(['checkergen log file'])
-            runwriter.writerow(['flags:', self.flags])
-            runwriter.writerow(['blocks:', self.blocks])
-            runwriter.writerow(['sequence:'] + self.sequence)
+            writer = csv.writer(runfile, dialect='excel-tab')
+            writer.writerow(['checkergen log file'])
+            writer.writerow(['flags:', self.flags])
+            writer.writerow(['blocks:', self.blocks])
+            writer.writerow(['sequence:'] + self.sequence)
             if self.add_idlist != None:
-                runwriter.writerow(['groups appended:'])
+                writer.writerow(['groups appended:'])
                 rowlist = grouper(len(self.sequence), self.add_idlist, '')
                 for row in rowlist:
-                    runwriter.writerow(row)
+                    writer.writerow(row)
             if self.fail_idlist != None:
-                runwriter.writerow(['groups failed (not appended):'])
+                writer.writerow(['groups failed (not appended):'])
                 rowlist = grouper(len(self.sequence), self.fail_idlist, '')
                 for row in rowlist:
-                    runwriter.writerow(row)
+                    writer.writerow(row)
             stamps = [self.timestamps, self.durstamps, self.trigstamps]
             if len(max(stamps)) > 0:
                 for l in stamps:
                     if len(l) == 0:
                         l = [''] * len(max(stamps))
-                runwriter.writerow(['timestamps', 'durations', 'triggers'])
+                writer.writerow(['timestamps', 'durations', 'triggers'])
                 for row in zip(*stamps):
-                    runwriter.writerow(row)
+                    writer.writerow(row)
 
 class CkgDisplayGroup:
 
