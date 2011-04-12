@@ -755,7 +755,7 @@ class CkgCmd(cmd.Cmd):
                                         less dropped frames (choices:
                                         0-3, low, normal, high,
                                         realtime)''')
-    display_parser.add_argument('-r', '--repeat', metavar='N', type=int,
+    display_parser.add_argument('-r', '--repeats', metavar='N', type=int,
                                 help='''repeatedly display specified display
                                         groups N number of times''')
     display_parser.add_argument('-pt', '--phototest', action='store_true',

@@ -110,7 +110,8 @@ class CkgProj:
                                         ('etuser', False),
                                         ('etvideo', None),
                                         ('tryagain', 0),
-                                        ('trybreak', None)])
+                                        ('trybreak', None),
+                                        ('repeats', 1)])
 
     def __init__(self, **keywords):
         """Initializes a new project, or loads it from a path.
@@ -832,24 +833,207 @@ class CkgExp:
                     sequence = [int(i) for i in row]
                     self.sequences.append(sequence)
  
-class CkgRun:
+class CkgRunState:
+    """Contains information about the state of a checkergen project
+    when it is being displayed or exported."""
 
-    def __init__(self, name, flags, blocks, sequence):
-        """Creates an experimental run."""
-        self.name = name
-        self.flags = flags
-        self.blocks = blocks
-        self.sequence = sequence
-        self.add_idlist = None
-        self.fail_idlist = None
-        self.timestamps = []
-        self.durstamps = []
-        self.trigstamps = []
+    DEFAULTS = dict([('proj', None),
+                     ('order', []),
+                     ('disp_ops', None),
+                     ('events', None),
+                     ('add_gids', []),
+                     ('fail_gids', []),
+                     ('timestamps', []),
+                     ('durstamps', []),
+                     ('trigstamps', [])])
 
-    def idlist(self):
-        """Generate idlist from sequence and return it."""
-        idlist = ([-1] + self.sequence) * self.blocks
-        return idlist
+    DEFAULTS['events'] = dict([('blk_on', False),
+                               ('blk_off', False),
+                               ('track_on', False),
+                               ('track_off', False),
+                               ('fix_on', False),
+                               ('fix_off', False),
+                               ('grp_on', False),
+                               ('grp_off', False),
+                               ('sids', [])])
+    
+    def __init__(self, **keywords):
+        """Creates the RunState."""
+        for kw in self.__class__.DEFAULTS.keys():
+            if kw in keywords.keys():
+                setattr(self, kw, keywords[kw])
+            else:
+                setattr(self, kw, self.__class__.DEFAULTS[kw])
+
+    def start(self):
+        """Initialize all subsystems and start the run."""
+
+        if self.proj == None:
+            msg = "RunState lacks associated project, run cannot begin"
+            raise ValueError(msg)
+
+        self.count = 0
+        self.trycount = self.disp_ops['tryagain']
+
+        # Create fixation crosses
+        self.fix_crosses = [graphics.Cross([r/2 for r in self.proj.res],
+                                           (20, 20), col = cross_col) 
+                            for cross_col in self.proj.cross_cols]
+
+        # Create test rectangle
+        if self.disp_ops['phototest']:
+            self.test_rect = graphics.Rect((0, self.res[1]), 
+                                           [r/8 for r in self.proj.res],
+                                           anchor='topleft')
+
+        # Initialize ports
+        if self.disp_ops['trigser']:
+            if not trigger.available['serial']:
+                msg = 'serial port functionality not available'
+                raise NotImplementedError(msg)
+        if self.disp_ops['trigpar']:
+            if not trigger.available['parallel']:
+                msg = 'parallel port functionality not available'
+                raise NotImplementedError(msg)
+        trigger.init(trigser, trigpar)
+
+        # Initialize eyetracking
+        if self.disp_ops['eyetrack']:
+            if not eyetracking.available:
+                msg = 'eyetracking functionality not available'
+                raise NotImplementedError(msg)
+            if self.disp_ops['trybreak'] == None:
+                self.disp_ops['trybreak'] = len(self.proj.groups)
+            self.fixated = False
+            self.old_fixated = False
+            self.tracked = False
+            self.old_tracked = False
+            eyetracking.select_source(self.disp_ops['etuser'],
+                                      self.disp_ops['etvideo'])
+            eyetracking.start()
+        
+        # Stretch to fit screen only if project res does not equal screen res
+        self.scaling = False
+        if self.disp_ops['fullscreen']:
+            self.window = pyglet.window.Window(fullscreen=True, visible=False)
+            if (self.window.width, self.window.height) != self.proj.res:
+                self.scaling = True
+        else:
+            self.window = pyglet.window.Window(*self.proj.res, visible=False)
+
+        # Set up KeyStateHandler to handle keyboard input
+        self.keystates = pyglet.window.key.KeyStateHandler()
+        self.window.push_handlers(keystates)
+
+        # Clear window and make visible
+        self.window.switch_to()
+        graphics.set_clear_color(self.proj.bg)
+        self.window.clear()
+        self.window.set_visible()
+
+        # Create framebuffer object for drawing unscaled scene
+        if self.scaling:
+            self.canvas = pyglet.image.Texture.create(*self.proj.res)
+            self.fbo = graphics.Framebuffer(canvas)
+            self.fbo.start_render()
+            graphics.set_clear_color(self.proj.bg)
+            self.fbo.clear()
+
+        # Start timers
+        if self.disp_ops['logtime']:
+            self.timer = Timer()
+            self.timer.start()
+        if self.disp_ops['logdur']:
+            self.dur = Timer()
+            self.dur.start()
+
+    def update(self):
+        """Update the RunState."""
+
+        # Check for tracking and fixation
+        if self.disp_ops['eyetrack']:
+            self.old_tracked = self.tracked
+            self.tracked = eyetracking.is_tracked()
+            self.old_fixated = self.fixated
+            self.fixated = eyetracking.is_fixated(FIX_POS, FIX_RANGE, FIX_PER)
+
+            if fixated:
+                # Draw normal cross color if fixating
+                fix_crosses[0].draw()
+            else:
+                # Draw alternative cross color if not fixating
+                fix_crosses[1].draw()
+
+            # Update eyetracking events
+            if self.tracked != self.old_tracked:
+                if self.tracked:
+                    self.events['track_on'] = True
+                else:
+                    self.events['track_off'] = True
+            if self.fixated != self.old_fixated:
+                if self.fixated:
+                    self.events['fix_on'] = True
+                else:
+                    self.events['fix_off'] = True
+
+        else:
+            # Change cross color based on time
+            if (self.count % (sum(self.cross_times) * self.fps) 
+                < self.cross_times[0] * self.fps):
+                fix_crosses[0].draw()
+            else:
+                fix_crosses[1].draw()                
+                
+        # Blit canvas to screen if necessary
+        if self.scaling:
+            self.fbo.end_render()
+            self.window.switch_to()
+            self.canvas.blit(0, 0)
+        self.window.dispatch_events()
+        self.window.flip()
+        # Make sure everything has been drawn
+        pyglet.gl.glFinish()
+
+        # Append time information to lists
+        if self.disp_ops['logtime']:
+            self.timestamps.append(self.timer.elapsed())
+        elif self.disp_ops['logdur']:
+            self.timestamps.append('')
+        if self.disp_ops['logdur']:
+            self.durstamps.append(self.dur.restart())
+        elif self.disp_ops['logtime']:
+            self.durstamps.append('')
+
+        # Send trigger ASAP after flip
+        if self.disp_ops['trigser'] or self.disp_ops['trigpar']:
+            trigger.send(trigser, trigpar, self.encode_events())
+
+        # Log when triggers are sent
+        if self.disp_ops['logtime']:
+            if self.encode_events() != None:
+                trigstamps.append(self.encode_events())
+            else:
+                trigstamps.append('')
+
+        # Clear canvas, events, prepare for next frame
+        if self.scaling:
+            self.fbo.start_render()
+            self.fbo.clear()
+        else:
+            self.window.clear()
+
+        self.count += 1
+
+    def stop(self):
+        """Clean up RunState."""
+        if self.disp_ops['eyetrack']:
+            eyetracking.stop()
+        self.window.close()
+        if self.scaling:
+            self.fbo.delete()
+            del self.canvas
+        if self.disp_ops['trigser'] or self.disp_ops['trigpar']:
+            trigger.quit(trigser, trigpar)
 
     def write_log(self, path=None):
         """Write a log file for the experimental run in the CSV format."""
