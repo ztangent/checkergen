@@ -18,6 +18,7 @@ import re
 import csv
 import random
 import itertools
+from datetime import datetime
 from xml.dom import minidom
 
 import pyglet
@@ -35,8 +36,7 @@ else:
     from collections import OrderedDict
 
 CKG_FMT = 'ckg'
-EXP_FMT = 'ckx'
-LOG_FMT = 'log'
+LOG_FMT = 'csv'
 XML_NAMESPACE = 'http://github.com/ZOMGxuan/checkergen'
 MAX_EXPORT_FRAMES = 100000
 PRERENDER_TO_TEXTURE = False
@@ -329,6 +329,8 @@ class CkgProj:
     def display(self, **keywords):
         """Displays the project animation on the screen.
 
+        name -- name that logfile will be saved with
+
         fullscreen -- animation is displayed fullscreen if true, stretched
         to fit if necessary
 
@@ -371,34 +373,71 @@ class CkgProj:
         """
 
         # Create RunState
-        disp_ops = self.__class___.DEFAULTS['disp_ops']
+        disp_ops = self.disp_ops
         for kw in keywords.keys():
             if kw in disp_ops.keys() and keywords[kw] != None:
                 disp_ops[kw] = keywords[kw]
-        if 'order' in keywords.keys():
-            order = keywords['order']
+        if 'name' in keywords.keys() and keywords['name'] != None:
+            name = keywords['name']
         else:
+            timestr = datetime.today().strftime('_%Y-%m-%d_%H-%M-%S')
+            name = self.name + timestr
+        if 'order' in keywords.keys() and len(keywords['order']) > 0:
+            order = keywords['order']
+        elif len(self.orders) > 0:
             order = random.choice(self.orders)
-        runstate = CkgRunState(res=self.res, fps=self.fps, bg=self.bg,
+        else:
+            order = range(len(self.groups))
+        runstate = CkgRunState(name=name,
+                               res=self.res, fps=self.fps, bg=self.bg,
                                cross_cols=self.cross_cols,
+                               cross_times=self.cross_times,
                                disp_ops=disp_ops, order=order)
         runstate.start()
+        waitscreen = CkgWaitScreen()
 
         # Count through pre
         for count in range(self.pre * self.fps):
+            if runstate.window.has_exit:
+                break
             runstate.update()
         # Loop through repeats
         for i in range(runstate.disp_ops['repeats']):
             # Show waitscreen
-            waitscreen = CkgWaitscreen()
+            waitscreen.reset()
             waitscreen.display(runstate)
             # Loop through display groups
             runstate.events['blk_on'] = True
             for gid in runstate.order:
-                self.groups[gid].display(runstate)
+                if gid == -1:
+                    waitscreen.reset()
+                    waitscreen.display(runstate)
+                else:
+                    self.groups[gid].display(runstate)
+                # Append failed groups
+                if runstate.disp_ops['eyetrack'] and runstate.truefail:
+                    if len(runstate.add_gids) < runstate.disp_ops['tryagain']:
+                        runstate.add_gids.append(gid)
+                    else:
+                        runstate.fail_gids.append(gid)
             runstate.events['blk_off'] = True
+        # Loop through added groups
+        if runstate.disp_ops['eyetrack']:
+            for blk in grouper(runstate.add_gids,
+                               runstate.disp_ops['trybreak']):
+                # Show waitscreen
+                waitscreen.reset()
+                waitscreen.display(runstate)
+                runstate.events['blk_on'] = True
+                # Loop through display groups
+                for gid in blk:
+                    if gid != None:
+                        self.groups[gid].display(runstate)
+                runstate.events['blk_on'] = True            
         # Count through post
         for count in range(self.post * self.fps):
+            if runstate.window.has_exit:
+                break
             runstate.update()
 
         # Stop and output log
@@ -501,10 +540,12 @@ class CkgRunState:
     """Contains information about the state of a checkergen project
     when it is being displayed or exported."""
 
-    DEFAULTS = dict([('res', None),
+    DEFAULTS = dict([('name', 'untitled'),
+                     ('res', None),
                      ('fps', None),
                      ('bg', None),
                      ('cross_cols', None),
+                     ('cross_times', None),
                      ('order', []),
                      ('disp_ops', None),
                      ('events', None),
@@ -539,12 +580,12 @@ class CkgRunState:
             msg = "RunState lacks display options"
             raise ValueError(msg)
 
-        if min(self.res, self.fps, self.bg, self.cross_cols) == None:
+        if min(self.res, self.fps, self.bg,
+               self.cross_cols, self.cross_times) == None:
             msg = "RunState intialized with insufficent project information"
             raise ValueError(msg)
 
-        self.count = 0
-        self.trycount = self.disp_ops['tryagain']
+        self._count = 0
 
         # Create fixation crosses
         self.fix_crosses = [graphics.Cross([r/2 for r in self.res],
@@ -566,7 +607,7 @@ class CkgRunState:
             if not trigger.available['parallel']:
                 msg = 'parallel port functionality not available'
                 raise NotImplementedError(msg)
-        trigger.init(trigser, trigpar)
+        trigger.init(self.disp_ops['trigser'], self.disp_ops['trigpar'])
 
         # Initialize eyetracking
         if self.disp_ops['eyetrack']:
@@ -579,6 +620,8 @@ class CkgRunState:
             self.old_fixated = False
             self.tracked = False
             self.old_tracked = False
+            self.fix_fail = False
+            self.true_fail = False
             eyetracking.select_source(self.disp_ops['etuser'],
                                       self.disp_ops['etvideo'])
             eyetracking.start()
@@ -594,7 +637,7 @@ class CkgRunState:
 
         # Set up KeyStateHandler to handle keyboard input
         self.keystates = pyglet.window.key.KeyStateHandler()
-        self.window.push_handlers(keystates)
+        self.window.push_handlers(self.keystates)
 
         # Clear window and make visible
         self.window.switch_to()
@@ -605,7 +648,7 @@ class CkgRunState:
         # Create framebuffer object for drawing unscaled scene
         if self.scaling:
             self.canvas = pyglet.image.Texture.create(*self.res)
-            self.fbo = graphics.Framebuffer(canvas)
+            self.fbo = graphics.Framebuffer(self.canvas)
             self.fbo.start_render()
             graphics.set_clear_color(self.bg)
             self.fbo.clear()
@@ -639,12 +682,12 @@ class CkgRunState:
             self.old_fixated = self.fixated
             self.fixated = eyetracking.is_fixated(FIX_POS, FIX_RANGE, FIX_PER)
 
-            if fixated:
+            if self.fixated:
                 # Draw normal cross color if fixating
-                fix_crosses[0].draw()
+                self.fix_crosses[0].draw()
             else:
                 # Draw alternative cross color if not fixating
-                fix_crosses[1].draw()
+                self.fix_crosses[1].draw()
 
             # Update eyetracking events
             if self.tracked != self.old_tracked:
@@ -658,19 +701,22 @@ class CkgRunState:
                 else:
                     self.events['fix_off'] = True
 
+            # Check for failure of trial
+            if self.tracked and not self.fixated:
+                self.fix_fail = True
         else:
             # Change cross color based on time
-            if (self.count % (sum(self.cross_times) * self.fps) 
+            if (self._count % (sum(self.cross_times) * self.fps) 
                 < self.cross_times[0] * self.fps):
-                fix_crosses[0].draw()
+                self.fix_crosses[0].draw()
             else:
-                fix_crosses[1].draw()                
+                self.fix_crosses[1].draw()                
                 
         # Blit canvas to screen if necessary
         if self.scaling:
             self.fbo.end_render()
-            self.window.switch_to()
             self.canvas.blit(0, 0)
+        self.window.switch_to()
         self.window.dispatch_events()
         self.window.flip()
         # Make sure everything has been drawn
@@ -691,11 +737,12 @@ class CkgRunState:
             trigger.send(trigser, trigpar, self.encode_events())
 
         # Log when triggers are sent
-        if self.disp_ops['logtime']:
-            if self.encode_events() != None:
-                trigstamps.append(self.encode_events())
-            else:
-                trigstamps.append('')
+        if (self.disp_ops['logtime'] and
+            (self.disp_ops['trigser'] or self.disp_ops['trigpar']) and
+            self.encode_events() != None):
+            self.trigstamps.append(self.encode_events())
+        else:
+            self.trigstamps.append('')
 
         # Clear canvas, events, prepare for next frame
         if self.scaling:
@@ -705,16 +752,16 @@ class CkgRunState:
             self.window.clear()
         self.events = self.__class__.DEFAULTS['events']
 
-        self.count += 1
+        self._count += 1
 
     def stop(self):
         """Clean up RunState."""
         if self.disp_ops['eyetrack']:
             eyetracking.stop()
-        self.window.close()
         if self.scaling:
             self.fbo.delete()
             del self.canvas
+        self.window.close()
         if self.disp_ops['trigser'] or self.disp_ops['trigpar']:
             trigger.quit(trigser, trigpar)
         if self.disp_ops['priority'] != None:
@@ -731,30 +778,27 @@ class CkgRunState:
             if ext != '.{0}'.format(LOG_FMT):
                 path = '{0}.{1}'.format(path, LOG_FMT)
 
-        with open(path, 'wb') as runfile:
-            writer = csv.writer(runfile, dialect='excel-tab')
+        with open(path, 'wb') as logfile:
+            writer = csv.writer(logfile, dialect='excel-tab')
             writer.writerow(['checkergen log file'])
-            writer.writerow(['flags:', self.flags])
-            writer.writerow(['blocks:', self.blocks])
-            writer.writerow(['sequence:'] + self.sequence)
-            if self.add_idlist != None:
-                writer.writerow(['groups appended:'])
-                rowlist = grouper(len(self.sequence), self.add_idlist, '')
-                for row in rowlist:
-                    writer.writerow(row)
-            if self.fail_idlist != None:
-                writer.writerow(['groups failed (not appended):'])
-                rowlist = grouper(len(self.sequence), self.fail_idlist, '')
-                for row in rowlist:
-                    writer.writerow(row)
-            stamps = [self.timestamps, self.durstamps, self.trigstamps]
-            if len(max(stamps)) > 0:
-                for l in stamps:
-                    if len(l) == 0:
-                        l = [''] * len(max(stamps))
+            writer.writerow(['display options:'])
+            writer.writerow(self.disp_ops.keys())
+            writer.writerow(self.disp_ops.values())
+            writer.writerow(['order:'] + self.order)
+            if self.disp_ops['eyetrack']:
+                write.writerow(['groups added'])
+                for blk in grouper(self.add_gids,
+                                   self.disp_ops['trybreak'], ''):
+                    write.writerow(blk)
+                write.writerow(['groups failed'])
+                for blk in grouper(self.fail_gids,
+                                   self.disp_ops['trybreak'], ''):
+                    write.writerow(blk)
+            if self.disp_ops['logtime'] or self.disp_ops['logdur']:
+                stamps = [self.timestamps, self.durstamps, self.trigstamps]
                 writer.writerow(['timestamps', 'durations', 'triggers'])
-                for row in zip(*stamps):
-                    writer.writerow(row)
+                for stamp in zip(*stamps):
+                    writer.writerow(list(stamp))
 
 class CkgDisplayGroup:
 
@@ -817,15 +861,28 @@ class CkgDisplayGroup:
 
     def display(self, runstate):
         """Display the group in the context described by supplied runstate."""
+        self.reset()
         for count in range(self.pre * runstate.fps):
+            if runstate.window.has_exit:
+                break
             runstate.update()
         runstate.events['blk_on'] = True
+        if runstate.disp_ops['eyetrack']:
+            runstate.fix_fail = False
+            renstate.true_fail = False
         for count in range(self.disp * runstate.fps):
+            if runstate.window.has_exit:
+                break
             self.draw(runstate)
             self.update(runstate)
             runstate.update()
         runstate.events['blk_off'] = True
+        if runstate.disp_ops['eyetrack']:
+            if runstate.fix_fail:
+                runstate.true_fail = True
         for count in range(self.post * runstate.fps):
+            if runstate.window.has_exit:
+                break
             runstate.update()
 
     def save(self, document, parent):
@@ -920,6 +977,8 @@ class CkgWaitScreen(CkgDisplayGroup):
     def display(self, runstate):
         """Displays waitscreen in context described by supplied runstate."""
         while self.steps_done < self.num_steps:
+            if runstate.window.has_exit:
+                break
             self.draw(runstate)
             self.update(runstate)
             runstate.update()

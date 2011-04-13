@@ -11,7 +11,7 @@
     <orders>[]</orders>
     <disp_ops>
         <fullscreen>False</fullscreen>
-        <priority>0</priority>
+        <priority>None</priority>
         <logtime>False</logtime>
         <logdur>False</logdur>
         <trigser>False</trigser>
@@ -24,6 +24,7 @@
         <etvideo>None</etvideo>
         <tryagain>0</tryagain>
         <trybreak>None</trybreak>
+        <repeats>1</repeats>
     </disp_ops>
     <group>
         <pre>Decimal('2')</pre>

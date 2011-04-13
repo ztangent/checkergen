@@ -744,9 +744,6 @@ class CkgCmd(cmd.Cmd):
     display_parser = CmdParser(add_help=False, prog='display',
                                description='''Displays the animation in a
                                               window or in fullscreen.''')
-    display_parser.add_argument('-e', '--expfile', metavar='PATH',
-                                help='''run experiment as described in
-                                        specified file, ignore other flags''')
     display_parser.add_argument('-f', '--fullscreen', action='store_true',
                                 help='sets fullscreen mode, ESC to quit')
     display_parser.add_argument('-p', '--priority', metavar='LEVEL',
@@ -776,7 +773,7 @@ class CkgCmd(cmd.Cmd):
     display_parser.add_argument('-sp', '--trigpar', action='store_true',
                                 help='''send triggers through the parallel port
                                         when shapes are being displayed''')
-    display_parser.add_argument('-fpst', metavar='M', type=int, default=0,
+    display_parser.add_argument('-fpst', metavar='M', type=int,
                                 help='''unique trigger corresponding to a
                                         checkerboard is sent after the shape
                                         undergoes M color flips (default:
@@ -802,11 +799,12 @@ class CkgCmd(cmd.Cmd):
                                         displayed after every J groups have
                                         been appended to the list (default:
                                         J=total number of groups)''')
-    display_parser.add_argument('idlist', nargs='*', metavar='id', type=int,
-                                help='''list of display groups to be displayed
-                                        in the specified order (default: order
-                                        by id, i.e. group 0 is first)''')
-                                
+    display_parser.add_argument('order', nargs='*', metavar='id', type=int,
+                                help='''order in which groups should be
+                                        displayed (default: random order
+                                        from list of orders if specified
+                                        in project, ascending otherwise)''')
+
     def help_display(self):
         self.__class__.display_parser.print_help()
 
@@ -823,73 +821,25 @@ class CkgCmd(cmd.Cmd):
             self.__class__.display_parser.print_usage()
             return
 
-        if args.expfile != None:
-            try:
-                exp = core.CkgExp(path=args.expfile)
-            except IOError:
-                print "error:", str(sys.exc_value)
-                return
-            try:
-                args = self.__class__.\
-                    display_parser.parse_args(shlex.split(exp.flags))
-            except (CmdParserError, ValueError):
-                print 'error: invalid flags stored in run file'
-                return
-            try:
-                print """name of log file (default: experiment name):"""
-                runname = raw_input().strip().strip('"\'')
-            except EOFError:
-                return
-            if runname == '':
-                runname == exp.name
-            run = exp.random_run(runname)
-            args.idlist = run.idlist()
-        else:
-            run = core.CkgRun(name=self.cur_proj.name,
-                              blocks=None,
-                              flags=line,
-                              sequence=[])
-
-        groupq = []
-        if len(args.idlist) > 0:
-            for i in set(args.idlist):
+        if len(args.order) > 0:
+            for i in set(args.order):
                 if i >= len(self.cur_proj.groups) or i < -1:
                     print 'error: group', i, 'does not exist'
                     return
-            for i in args.idlist:
-                if i == -1:
-                    groupq.append(core.CkgWaitScreen(res=self.cur_proj.res))
-                else:
-                    groupq.append(self.cur_proj.groups[i])
-        else:
-            groupq = list(self.cur_proj.groups)
-        if args.repeat != None:
-            groupq = list(groupq * args.repeat)
 
         if args.eyetrack and eyetracking.available:
             if not eyetracking.is_calibrated():
                 try:
-                    self.do_calibrate('',True)
+                    self.do_calibrate('',query=True)
                 except eyetracking.EyetrackingError:
                     print "error:", str(sys.exc_value)
                     return
 
-        if args.priority != None:
-            if not priority.available[sys.platform]:
-                print "error: setting priority not available on", sys.platform
-                print "continuing..."
-            else:
-                if args.priority.isdigit():
-                    args.priority = int(args.priority)
-                try:
-                    priority.set(args.priority)
-                except ValueError:
-                    print "error:", str(sys.exc_value)
-                    print "continuing..."
-
-        print "displaying..."
+        print "displaying...",
         try:
             self.cur_proj.display(fullscreen=args.fullscreen,
+                                  priority=args.priority,
+                                  repeats=args.repeats,
                                   logtime=args.logtime,
                                   logdur=args.logdur,
                                   trigser=args.trigser,
@@ -902,9 +852,9 @@ class CkgCmd(cmd.Cmd):
                                   etvideo=args.etvideo,
                                   tryagain=args.tryagain,
                                   trybreak=args.trybreak,
-                                  groupq=groupq,
-                                  run=run)
+                                  order=args.order)
         except (IOError, NotImplementedError, eyetracking.EyetrackingError):
+            print ''
             print "error:", str(sys.exc_value)
             if args.priority != None:
                 try:
@@ -912,18 +862,7 @@ class CkgCmd(cmd.Cmd):
                 except:
                     pass
             return
-
-        if args.priority != None:
-            try:
-                priority.set('normal')
-            except:
-                pass
-
-        try:
-            run.write_log()
-        except IOError:
-            print "error:", str(sys.exc_value)
-            return
+        print "done"
         print "log file written"
 
     export_parser = CmdParser(add_help=False, prog='export',
@@ -1009,93 +948,6 @@ class CkgCmd(cmd.Cmd):
                     return
 
         print "Export done."
-
-    mkexp_parser = CmdParser(add_help=False, prog='mkexp',
-                              description='''Create checkergen experiment file
-                                             which describes how the project
-                                             is to be displayed.''')
-    mkexp_parser.add_argument('-n', '--name',
-                               help='''name of the experiment (default: same
-                                       name as current project)''')
-    mkexp_parser.add_argument('-b', '--blocks', type=int, metavar='N',
-                               help='''N blocks displayed in a run, i.e.
-                                       the same sequence will be displayed
-                                       N times in that run, with waitscreens
-                                       in between''')
-    mkexp_parser.add_argument('-f', '--flags',
-                               help='''flags passed to the display command
-                                       that should be used when the run
-                                       file is run (enclose in quotes and use
-                                       '+' or '++' in place of '-' or '--')''')
-
-    def help_mkexp(self):
-        self.__class__.mkexp_parser.print_help()
-
-    def do_mkexp(self, line):
-        """Creates checkergen experiment file."""
-        if self.cur_proj == None:
-            print 'please create or open a project first'
-            return
-
-        try:
-            args = self.__class__.mkexp_parser.parse_args(shlex.split(line))
-        except (CmdParserError, ValueError):
-            print "error:", str(sys.exc_value)
-            self.__class__.mkexp_parser.print_usage()
-            return
-
-        if args.blocks == None:
-            print "number of blocks:"
-            try:
-                args.blocks = int(raw_input().strip())
-            except EOFError:
-                return
-            except ValueError:
-                print "error:", str(sys.exc_value)
-                return
-
-        if args.flags != None:
-            args.flags = args.flags.replace('+','-')
-        else:
-            print "flags used with display command (leave blank if none):"
-            try:
-                args.flags = raw_input().strip().strip('"\'')
-            except EOFError:
-                return
-
-        try:
-            disp_args = self.__class__.display_parser.\
-                parse_args(shlex.split(args.flags))
-        except (CmdParserError, ValueError):
-            print "error: invalid flags to display command"
-            print str(sys.exc_value)
-            self.__class__.display_parser.print_usage()
-            return
-
-        print "list of sequences to choose from in the format",\
-                "'id1,id2,id3;seq2;seq3;seq4':"
-        print "(default: reduced latin square)"
-        try:
-            seqs_str = raw_input().strip()
-            if seqs_str == '':
-                args.sequences = None
-            else:
-                args.sequences = [[int(i) for i in seq_str.split(',')]
-                                  for seq_str in seqs_str.split(';')]
-        except EOFError:
-            return
-
-        try:
-            new_exp = core.CkgExp(name=args.name, proj=self.cur_proj,
-                                  blocks=args.blocks,
-                                  sequences=args.sequences,
-                                  flags=args.flags)
-            new_exp.save()
-        except IOError:
-            print "error:", str(sys.exc_value)
-            return
-
-        print "Experiment file created."
 
     def do_calibrate(self, line, query=False):
         """Calibrate subject for eyetracking, or load a calibration file."""
