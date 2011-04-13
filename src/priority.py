@@ -47,24 +47,28 @@ if available[sys.platform]:
         def set_low(pid):
             if pid == None:
                 pid = CUR_PID
-            handle = win32api.OpenProcess(win32con.PROCESS_ALL_ACCESS, True, pid)
+            handle = win32api.OpenProcess(win32con.PROCESS_ALL_ACCESS,
+                                          True, pid)
             win32process.SetPriorityClass(handle,
                                           win32process.IDLE_PRIORITY_CLASS)
         def set_normal(pid):
             if pid == None:
                 pid = CUR_PID
-            handle = win32api.OpenProcess(win32con.PROCESS_ALL_ACCESS, True, pid)
+            handle = win32api.OpenProcess(win32con.PROCESS_ALL_ACCESS,
+                                          True, pid)
             win32process.SetPriorityClass(handle,
                                           win32process.NORMAL_PRIORITY_CLASS)
         def set_high(pid):
             if pid == None:
                 pid = CUR_PID
-            handle = win32api.OpenProcess(win32con.PROCESS_ALL_ACCESS, True, pid)
+            handle = win32api.OpenProcess(win32con.PROCESS_ALL_ACCESS,
+                                          True, pid)
             win32process.SetPriorityClass(handle,
                                           win32process.HIGH_PRIORITY_CLASS)
         def set_realtime(pid):
             if pid == None:
                 pid = CUR_PID
-            handle = win32api.OpenProcess(win32con.PROCESS_ALL_ACCESS, True, pid)
+            handle = win32api.OpenProcess(win32con.PROCESS_ALL_ACCESS,
+                                          True, pid)
             win32process.SetPriorityClass(handle,
                                           win32process.REALTIME_PRIORITY_CLASS)

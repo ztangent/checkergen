@@ -24,6 +24,7 @@ from xml.dom import minidom
 import pyglet
 
 import graphics
+import priority
 import trigger
 import eyetracking
 from utils import *
@@ -98,7 +99,7 @@ class CkgProj:
                             ('disp_ops', None)])
 
     DEFAULTS['disp_ops'] = OrderedDict([('fullscreen', False),
-                                        ('priority', 0),
+                                        ('priority', None),
                                         ('logtime', False),
                                         ('logdur', False),
                                         ('trigser', False),
@@ -326,15 +327,13 @@ class CkgProj:
 
         return path
 
-    def display(self, fullscreen=False, logtime=False, logdur=False,
-                trigser=False, trigpar=False, fpst=0,
-                phototest=False, photoburst=False,
-                eyetrack=False, etuser=False, etvideo=None,
-                tryagain=0, trybreak=None, groupq=[], run=None):
+    def display(self, **keywords):
         """Displays the project animation on the screen.
 
         fullscreen -- animation is displayed fullscreen if true, stretched
         to fit if necessary
+
+        priority -- priority level to which process should be raised
 
         logtime -- timestamp of each frame is saved to a logfile if true
 
@@ -359,32 +358,51 @@ class CkgProj:
         etvideo -- optional eyetracking video source file to use instead of
         live feed
 
-        tryagain -- Append groups during which subject failed to fixate up to
+        tryagain -- append groups during which subject failed to fixate up to
         this number of times to the group queue
 
-        trybreak -- Append a wait screen to the group queue every time
+        trybreak -- append a wait screen to the group queue every time
         after this many groups have been appended to the queue
         
-        groupq -- queue of groups to be displayed, defaults to order of
-        groups in project (i.e. groups[0] first, etc.)
+        repeats -- number of times specified order of display groups should
+        be repeated
 
-        run -- experimental run where logged variables are saved (i.e.
-        fail_idlist and time information)
+        order -- order in which groups (specified by id) will be displayed
 
         """
 
         # Create RunState
+        disp_ops = self.__class___.DEFAULTS['disp_ops']
+        for kw in keywords.keys():
+            if kw in disp_ops.keys() and keywords[kw] != None:
+                disp_ops[kw] = keywords[kw]
+        if 'order' in keywords.keys():
+            order = keywords['order']
+        else:
+            order = random.choice(self.orders)
+        runstate = CkgRunState(proj=self, disp_ops=disp_ops, order=order)
 
-        # Start run
+        runstate.start()
 
         # Count through pre
+        for count in range(self.pre * self.fps):
+            runstate.update()
 
         # Loop through repeats
-        # Loop through display groups
+        for i in range(runstate.disp_ops['repeats']):
+            # Show waitscreen
+            waitscreen = CkgWaitscreen()
+            waitscreen.display(runstate)
+            # Loop through display groups
+            for gid in runstate.order:
+                self.groups[gid].display(runstate)
 
         # Count through post
+        for count in range(self.post * self.fps):
+            runstate.update()
+            count += 1
 
-        # Write log
+        runstate.stop()
         runstate.log()
 
     def export(self, export_dir, export_duration, groupq=[],
@@ -585,6 +603,17 @@ class CkgRunState:
             graphics.set_clear_color(self.proj.bg)
             self.fbo.clear()
 
+        # Set process priority
+        if self.disp_ops['priority'] != None:
+            if not priority.available[sys.platform]:
+                msg = "setting priority not available on {0}".\
+                    format(sys.platform)
+                raise NotImplementedError(msg)
+            else:
+                if self.disp_ops['priority'].isdigit():
+                    self.disp_ops['priority'] = int(self.disp_ops['priority'])
+                priority.set(self.disp_ops['priority'])
+
         # Start timers
         if self.disp_ops['logtime']:
             self.timer = Timer()
@@ -667,6 +696,7 @@ class CkgRunState:
             self.fbo.clear()
         else:
             self.window.clear()
+        self.events = self.__class__.DEFAULTS['events']
 
         self.count += 1
 
@@ -680,6 +710,8 @@ class CkgRunState:
             del self.canvas
         if self.disp_ops['trigser'] or self.disp_ops['trigpar']:
             trigger.quit(trigser, trigpar)
+        if self.disp_ops['priority'] != None:
+            priority.set('normal')
 
     def log(self, path=None):
         """Write a log file for the experimental run in the CSV format."""
