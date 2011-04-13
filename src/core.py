@@ -6,7 +6,6 @@ FrameOverflowError
 
 Classes:
 CkgProj -- A checkergen project, contains settings and CkgDisplayGroups.
-CkgExp -- A checkergen experiment, describes how a projet is displayed.
 CkgDisplayGroup -- A set of CheckerShapes to be displayed simultaneously.
 CheckerShapes -- Abstract checkered shape class
 CheckerBoard -- A (distorted) checkerboard pattern, can color-flip.
@@ -380,28 +379,29 @@ class CkgProj:
             order = keywords['order']
         else:
             order = random.choice(self.orders)
-        runstate = CkgRunState(proj=self, disp_ops=disp_ops, order=order)
-
+        runstate = CkgRunState(res=self.res, fps=self.fps, bg=self.bg,
+                               cross_cols=self.cross_cols,
+                               disp_ops=disp_ops, order=order)
         runstate.start()
 
         # Count through pre
         for count in range(self.pre * self.fps):
             runstate.update()
-
         # Loop through repeats
         for i in range(runstate.disp_ops['repeats']):
             # Show waitscreen
             waitscreen = CkgWaitscreen()
             waitscreen.display(runstate)
             # Loop through display groups
+            runstate.events['blk_on'] = True
             for gid in runstate.order:
                 self.groups[gid].display(runstate)
-
+            runstate.events['blk_off'] = True
         # Count through post
         for count in range(self.post * self.fps):
             runstate.update()
-            count += 1
 
+        # Stop and output log
         runstate.stop()
         runstate.log()
 
@@ -501,7 +501,10 @@ class CkgRunState:
     """Contains information about the state of a checkergen project
     when it is being displayed or exported."""
 
-    DEFAULTS = dict([('proj', None),
+    DEFAULTS = dict([('res', None),
+                     ('fps', None),
+                     ('bg', None),
+                     ('cross_cols', None),
                      ('order', []),
                      ('disp_ops', None),
                      ('events', None),
@@ -519,7 +522,7 @@ class CkgRunState:
                                ('fix_off', False),
                                ('grp_on', False),
                                ('grp_off', False),
-                               ('sids', [])])
+                               ('sids', set())])
     
     def __init__(self, **keywords):
         """Creates the RunState."""
@@ -532,22 +535,26 @@ class CkgRunState:
     def start(self):
         """Initialize all subsystems and start the run."""
 
-        if self.proj == None:
-            msg = "RunState lacks associated project, run cannot begin"
+        if self.disp_ops == None:
+            msg = "RunState lacks display options"
+            raise ValueError(msg)
+
+        if min(self.res, self.fps, self.bg, self.cross_cols) == None:
+            msg = "RunState intialized with insufficent project information"
             raise ValueError(msg)
 
         self.count = 0
         self.trycount = self.disp_ops['tryagain']
 
         # Create fixation crosses
-        self.fix_crosses = [graphics.Cross([r/2 for r in self.proj.res],
+        self.fix_crosses = [graphics.Cross([r/2 for r in self.res],
                                            (20, 20), col = cross_col) 
-                            for cross_col in self.proj.cross_cols]
+                            for cross_col in self.cross_cols]
 
         # Create test rectangle
         if self.disp_ops['phototest']:
             self.test_rect = graphics.Rect((0, self.res[1]), 
-                                           [r/8 for r in self.proj.res],
+                                           [r/8 for r in self.res],
                                            anchor='topleft')
 
         # Initialize ports
@@ -567,7 +574,7 @@ class CkgRunState:
                 msg = 'eyetracking functionality not available'
                 raise NotImplementedError(msg)
             if self.disp_ops['trybreak'] == None:
-                self.disp_ops['trybreak'] = len(self.proj.groups)
+                self.disp_ops['trybreak'] = len(self.order)
             self.fixated = False
             self.old_fixated = False
             self.tracked = False
@@ -580,10 +587,10 @@ class CkgRunState:
         self.scaling = False
         if self.disp_ops['fullscreen']:
             self.window = pyglet.window.Window(fullscreen=True, visible=False)
-            if (self.window.width, self.window.height) != self.proj.res:
+            if (self.window.width, self.window.height) != self.res:
                 self.scaling = True
         else:
-            self.window = pyglet.window.Window(*self.proj.res, visible=False)
+            self.window = pyglet.window.Window(*self.res, visible=False)
 
         # Set up KeyStateHandler to handle keyboard input
         self.keystates = pyglet.window.key.KeyStateHandler()
@@ -591,16 +598,16 @@ class CkgRunState:
 
         # Clear window and make visible
         self.window.switch_to()
-        graphics.set_clear_color(self.proj.bg)
+        graphics.set_clear_color(self.bg)
         self.window.clear()
         self.window.set_visible()
 
         # Create framebuffer object for drawing unscaled scene
         if self.scaling:
-            self.canvas = pyglet.image.Texture.create(*self.proj.res)
+            self.canvas = pyglet.image.Texture.create(*self.res)
             self.fbo = graphics.Framebuffer(canvas)
             self.fbo.start_render()
-            graphics.set_clear_color(self.proj.bg)
+            graphics.set_clear_color(self.bg)
             self.fbo.clear()
 
         # Set process priority
@@ -784,70 +791,42 @@ class CkgDisplayGroup:
         return self.pre + self.disp + self.post
 
     def reset(self):
-        """Resets internal count and all contained shapes."""
-        self._count = 0
-        self._start = self.pre
-        self._stop = self.pre + self.disp
-        self._end = self.pre + self.disp + self.post
-        self.over = False
-        self.old_visible = False
-        if self._start == 0 and self._stop > 0:
-            self.visible = True
-        else:
-            self.visible = False
-            if self._end == 0:
-                self.over = True
+        """Resets counts and all contained shapes."""
         self._flip_count = [0] * len(self.shapes)
         for shape in self.shapes:
             shape.reset()
 
-    def draw(self, lazy=False, photoburst=False):
+    def draw(self, runstate):
         """Draws all contained shapes during the appropriate interval."""
-        if self.visible:
-            for shape in self.shapes:
-                if lazy:
-                    shape.lazydraw()
-                else:
-                    shape.draw(photoburst=photoburst)
+        for shape in self.shapes:
+            shape.draw(photoburst=runstate.disp_ops['photoburst'])
 
-    def update(self, **keywords):
-        """Increments internal count, makes group visible when appropriate.
+    def update(self, runstate):
+        """Updates contained shapes, sets event triggers."""
+        # Set events to be sent
+        if runstate.disp_ops['fpst'] > 0:
+            for n, shape in enumerate(self.shapes):
+                if shape.flipped:
+                    self._flip_count[n] += 1
+                if self._flip_count[n] >= fpst:
+                    runstate.events['sids'].add(n)
+                    self._flip_count[n] = 0
+        # Update contained shapes
+        for shape in self.shapes:
+            shape.update(runstate.fps)
 
-        fps -- refresh rate of the display in frames per second
-
-        fpst -- flips per shape trigger, i.e. number of shape color reversals
-        (flips) that occur for a unique trigger to be sent for that shape
-
-        """
-
-        fps = keywords['fps']
-        fpst = keywords['fpst']
-                
-        if self.visible:
-            # Set triggers to be sent
-            if fpst > 0:
-                for n, shape in enumerate(self.shapes):
-                    if shape.flipped:
-                        self._flip_count[n] += 1
-                    if self._flip_count[n] >= fpst:
-                        trigger.CUR_STATE['shape'] = 1
-                        trigger.CUR_STATE['sid'] = n
-                        self._flip_count[n] = 0
-            # Update contained shapes
-            for shape in self.shapes:
-                shape.update(fps)
-
-        # Increment count and set flags for the next frame
-        self._count += 1
-        self.old_visible = self.visible
-        if (self._start * fps) <= self._count < (self._stop * fps):
-            self.visible = True
-        else:
-            self.visible = False
-        if self._count >= (self._end * fps):
-            self.over = True
-        else:
-            self.over = False
+    def display(self, runstate):
+        """Display the group in the context described by supplied runstate."""
+        for count in range(self.pre * runstate.fps):
+            runstate.update()
+        runstate.events['blk_on'] = True
+        for count in range(self.disp * runstate.fps):
+            self.draw(runstate)
+            self.update(runstate)
+            runstate.update()
+        runstate.events['blk_off'] = True
+        for count in range(self.post * runstate.fps):
+            runstate.update()
 
     def save(self, document, parent):
         """Saves group in specified XML document as child of parent."""
@@ -926,24 +905,24 @@ class CkgWaitScreen(CkgDisplayGroup):
 
     def reset(self):
         """Resets some flags."""
-        self.visible = False
-        self.old_visible = False
         self.steps_done = 0
-        self.over = False
 
-    def draw(self, **keywords):
+    def draw(self, runstate):
         """Draw informative text."""
         self.labels[self.steps_done].draw()
 
-    def update(self, **keywords):
+    def update(self, runstate):
         """Checks for keypress, sends trigger upon end."""
-        
-        keystates = keywords['keystates']
-
-        if max([keystates[key] for key in self.cont_keys[self.steps_done]]):
+        if max([runstate.keystates[key] for 
+                key in self.cont_keys[self.steps_done]]):
             self.steps_done += 1
-        if self.steps_done == self.num_steps:
-            self.over = True
+
+    def display(self, runstate):
+        """Displays waitscreen in context described by supplied runstate."""
+        while self.steps_done < self.num_steps:
+            self.draw(runstate)
+            self.update(runstate)
+            runstate.update()
 
 class CheckerShape:
     # Abstract class, to be implemented.
