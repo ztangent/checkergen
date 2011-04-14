@@ -10,6 +10,8 @@
     <cross_times>(Decimal('Infinity'), Decimal('1'))</cross_times>
     <orders>[]</orders>
     <disp_ops>
+        <repeats>1</repeats>
+        <waitless>False</waitless>
         <fullscreen>False</fullscreen>
         <priority>None</priority>
         <logtime>False</logtime>
@@ -24,7 +26,7 @@
         <etvideo>None</etvideo>
         <tryagain>0</tryagain>
         <trybreak>None</trybreak>
-        <repeats>1</repeats>
+        <nolog>False</nolog>
     </disp_ops>
     <group>
         <pre>Decimal('2')</pre>

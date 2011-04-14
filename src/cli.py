@@ -744,6 +744,14 @@ class CkgCmd(cmd.Cmd):
     display_parser = CmdParser(add_help=False, prog='display',
                                description='''Displays the animation in a
                                               window or in fullscreen.''')
+    display_parser.add_argument('-n', '--name', metavar='FOOBAR',
+                                help='''name of log file to be written''')
+    display_parser.add_argument('-r', '--repeats', metavar='N', type=int,
+                                help='''repeatedly display specified display
+                                        groups N number of times''')
+    display_parser.add_argument('-wl', '--waitless', action='store_true',
+                                help='''do not add waitscreens before the
+                                        start of each repeat''')
     display_parser.add_argument('-f', '--fullscreen', action='store_true',
                                 help='sets fullscreen mode, ESC to quit')
     display_parser.add_argument('-p', '--priority', metavar='LEVEL',
@@ -752,9 +760,6 @@ class CkgCmd(cmd.Cmd):
                                         less dropped frames (choices:
                                         0-3, low, normal, high,
                                         realtime)''')
-    display_parser.add_argument('-r', '--repeats', metavar='N', type=int,
-                                help='''repeatedly display specified display
-                                        groups N number of times''')
     display_parser.add_argument('-pt', '--phototest', action='store_true',
                                 help='''draw white test rectangle in topleft
                                         corner of screen when groups become
@@ -799,6 +804,8 @@ class CkgCmd(cmd.Cmd):
                                         displayed after every J groups have
                                         been appended to the list (default:
                                         J=total number of groups)''')
+    display_parser.add_argument('-nl', '--nolog', action='store_true',
+                                help='''do not write a log file''')
     display_parser.add_argument('order', nargs='*', metavar='id', type=int,
                                 help='''order in which groups should be
                                         displayed (default: random order
@@ -837,9 +844,11 @@ class CkgCmd(cmd.Cmd):
 
         print "displaying...",
         try:
-            self.cur_proj.display(fullscreen=args.fullscreen,
-                                  priority=args.priority,
+            self.cur_proj.display(name=args.name,
                                   repeats=args.repeats,
+                                  waitless=args.waitless,
+                                  fullscreen=args.fullscreen,
+                                  priority=args.priority,
                                   logtime=args.logtime,
                                   logdur=args.logdur,
                                   trigser=args.trigser,
@@ -852,6 +861,7 @@ class CkgCmd(cmd.Cmd):
                                   etvideo=args.etvideo,
                                   tryagain=args.tryagain,
                                   trybreak=args.trybreak,
+                                  nolog=args.nolog,
                                   order=args.order)
         except (IOError, NotImplementedError, eyetracking.EyetrackingError):
             print ''
@@ -863,7 +873,6 @@ class CkgCmd(cmd.Cmd):
                     pass
             return
         print "done"
-        print "log file written"
 
     export_parser = CmdParser(add_help=False, prog='export',
                               description='''Exports animation as an image

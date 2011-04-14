@@ -97,7 +97,9 @@ class CkgProj:
                             ('orders', []),
                             ('disp_ops', None)])
 
-    DEFAULTS['disp_ops'] = OrderedDict([('fullscreen', False),
+    DEFAULTS['disp_ops'] = OrderedDict([('repeats', 1),
+                                        ('waitless', False),
+                                        ('fullscreen', False),
                                         ('priority', None),
                                         ('logtime', False),
                                         ('logdur', False),
@@ -111,7 +113,7 @@ class CkgProj:
                                         ('etvideo', None),
                                         ('tryagain', 0),
                                         ('trybreak', None),
-                                        ('repeats', 1)])
+                                        ('nolog', False)])
 
     def __init__(self, **keywords):
         """Initializes a new project, or loads it from a path.
@@ -331,6 +333,12 @@ class CkgProj:
 
         name -- name that logfile will be saved with
 
+        repeats -- number of times specified order of display groups should
+        be repeated
+
+        waitless -- if true, no waitscreens will appear at the start of each
+        repeat
+
         fullscreen -- animation is displayed fullscreen if true, stretched
         to fit if necessary
 
@@ -365,9 +373,6 @@ class CkgProj:
         trybreak -- append a wait screen to the group queue every time
         after this many groups have been appended to the queue
         
-        repeats -- number of times specified order of display groups should
-        be repeated
-
         order -- order in which groups (specified by id) will be displayed
 
         """
@@ -404,8 +409,9 @@ class CkgProj:
         # Loop through repeats
         for i in range(runstate.disp_ops['repeats']):
             # Show waitscreen
-            waitscreen.reset()
-            waitscreen.display(runstate)
+            if not runstate.disp_ops['waitless']:
+                waitscreen.reset()
+                waitscreen.display(runstate)
             # Loop through display groups
             runstate.events['blk_on'] = True
             for gid in runstate.order:
@@ -426,8 +432,9 @@ class CkgProj:
             for blk in grouper(runstate.add_gids,
                                runstate.disp_ops['trybreak']):
                 # Show waitscreen
-                waitscreen.reset()
-                waitscreen.display(runstate)
+                if not runstate.disp_ops['waitless']:                
+                    waitscreen.reset()
+                    waitscreen.display(runstate)
                 runstate.events['blk_on'] = True
                 # Loop through display groups
                 for gid in blk:
@@ -442,7 +449,8 @@ class CkgProj:
 
         # Stop and output log
         runstate.stop()
-        runstate.log()
+        if not runstate.disp_ops['nolog']:
+            runstate.log()
 
     def export(self, export_dir, export_duration, groupq=[],
                export_fmt=None, folder=True, force=False):
