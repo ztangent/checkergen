@@ -39,7 +39,6 @@ CKG_FMT = 'ckg'
 LOG_FMT = 'csv'
 XML_NAMESPACE = 'http://github.com/ZOMGxuan/checkergen'
 MAX_EXPORT_FRAMES = 100000
-PRERENDER_TO_TEXTURE = False
 INT_HALF_PERIODS = True
 EXPORT_FMTS = ['png']
 EXPORT_DIR_SUFFIX = '-anim'
@@ -1114,11 +1113,7 @@ class CheckerBoard(CheckerShape):
                                graphics.locations[self.anchor])])
 
         # Set initial values
-        if PRERENDER_TO_TEXTURE:
-            init_pos = [(1 - a)* s/to_decimal(2) for s, a in 
-                        zip(self._size, graphics.locations[self.anchor])]
-        else:
-            init_pos = list(self.position)
+        init_pos = list(self.position)
         init_unit = [c + m/2 for c, m in zip(self.init_unit, unit_grad)]
         cur_unit = list(init_unit)
         cur_unit_pos = list(init_pos)
@@ -1148,31 +1143,10 @@ class CheckerBoard(CheckerShape):
                 graphics.locations[self.anchor][1] * cur_unit[1]
             cur_unit[1] += unit_grad[1]
 
-        if PRERENDER_TO_TEXTURE:
-            # Create textures
-            int_size = [int(round(s)) for s in self._size]
-            self._prerenders =\
-                [pyglet.image.Texture.create(*int_size) for n in range(2)]
-            # Set up framebuffer
-            fbo = graphics.Framebuffer()
-            for n in range(2):
-                fbo.attach_texture(self._prerenders[n])
-                # Draw batch to texture
-                fbo.start_render()
-                self._batches[n].draw()
-                fbo.end_render()
-                # Anchor textures for correct blitting later
-                self._prerenders[n].anchor_x, self._prerenders[n].anchor_y =\
-                    [int(round((1 - a)* s/to_decimal(2))) for s, a in 
-                     zip(self._size, graphics.locations[self.anchor])]
-            fbo.delete()
-            # Delete batches since they won't be used
-            del self._batches
-
         self._computed = True
 
     def draw(self, photoburst=False, always_compute=False):
-        """Draws appropriate prerender depending on current phase.
+        """Draws appropriate batch depending on current phase.
 
         photoburst -- draw first color for only one frame for testing purposes
 
@@ -1186,10 +1160,7 @@ class CheckerBoard(CheckerShape):
         n = int(self._cur_phase // 180)
         if photoburst and n == 0 and not self.flipped:
             n = 1
-        if PRERENDER_TO_TEXTURE:
-            self._prerenders[n].blit(*self.position)
-        else:
-            self._batches[n].draw()
+        self._batches[n].draw()
 
     def lazydraw(self):
         """Only draws on color reversal."""
