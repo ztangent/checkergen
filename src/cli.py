@@ -783,6 +783,10 @@ class CkgCmd(cmd.Cmd):
                                         checkerboard is sent after the shape
                                         undergoes M color flips (default:
                                         disabled, M=0)''')
+    display_parser.add_argument('-fc', '--freqcheck', action='store_true',
+                                help='''only send triggers for board color
+                                        flips at the start, middle and end
+                                        of the run''')
     display_parser.add_argument('-et', '--eyetrack', action='store_true',
                                 help='''use eyetracking to ensure that subject
                                         fixates on the cross in the center''')
@@ -854,6 +858,7 @@ class CkgCmd(cmd.Cmd):
                                   trigser=args.trigser,
                                   trigpar=args.trigpar,
                                   fpst=args.fpst,
+                                  freqcheck=args.freqcheck,
                                   phototest=args.phototest,
                                   photoburst=args.photoburst,
                                   eyetrack=args.eyetrack,

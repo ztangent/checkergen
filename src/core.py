@@ -106,6 +106,7 @@ class CkgProj:
                                         ('trigser', False),
                                         ('trigpar', False),
                                         ('fpst', 0),
+                                        ('freqcheck', False),
                                         ('phototest', False),
                                         ('photoburst', False),
                                         ('eyetrack', False),
@@ -355,6 +356,9 @@ class CkgProj:
         fpst -- flips per shape trigger, i.e. number of shape color reversals
         (flips) that occur for a unique trigger to be sent for that shape
 
+        freqcheck -- send fpst only at the start, the middle, and the end
+        for sanity checking of display and trigger fps
+
         phototest -- draw white rectangle in topleft corner when each group is
         shown for photodiode to detect
 
@@ -410,14 +414,24 @@ class CkgProj:
                 break
             runstate.update()
         # Loop through repeats
-        for i in range(runstate.disp_ops['repeats']):
+        repeats = runstate.disp_ops['repeats']
+        ord_len = len(runstate.order)
+        for i in range(repeats):
             # Show waitscreen
             if not runstate.disp_ops['waitless']:
                 waitscreen.reset()
                 waitscreen.display(runstate)
             # Loop through display groups
             runstate.events['blk_on'] = True
-            for gid in runstate.order:
+            for n, gid in enumerate(runstate.order):
+                # Set flag for freqcheck
+                if runstate.disp_ops['freqcheck']:
+                    if ((i == 0 and n == 0) or
+                        (i == repeats-1 and n == ord_len-1) or
+                        (i == repeats//2 and n == ord_len//2)):
+                        runstate.fc_send = True
+                    else:
+                        runstate.fc_send = False
                 if gid == -1:
                     waitscreen.reset()
                     waitscreen.display(runstate)
@@ -598,6 +612,9 @@ class CkgRunState:
             raise ValueError(msg)
 
         self._count = 0
+
+        # Flag used by freqcheck
+        self.fc_send = False
 
         # Create fixation crosses
         self.fix_crosses = [graphics.Cross([r/2 for r in self.res],
@@ -806,7 +823,7 @@ class CkgRunState:
                         (1 in self.events['sids'])*2**1 +
                         (2 in self.events['sids'])*2**2 +
                         (3 in self.events['sids'])*2**3)
-                code = mult * 16 + (code + 1)
+                code = mult*16 + code
             elif mult > 0:
                 code = 110 + mult
         return code
@@ -897,7 +914,8 @@ class CkgDisplayGroup:
                 if shape.flipped:
                     self._flip_count[n] += 1
                 if self._flip_count[n] >= runstate.disp_ops['fpst']:
-                    runstate.events['sids'].add(n)
+                    if not runstate.disp_ops['freqcheck'] or runstate.fc_send:
+                        runstate.events['sids'].add(n)
                     self._flip_count[n] = 0
         # Update contained shapes
         for shape in self.shapes:
