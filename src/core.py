@@ -382,7 +382,7 @@ class CkgProj:
         """
 
         # Create RunState
-        disp_ops = self.disp_ops
+        disp_ops = copy.deepcopy(self.disp_ops)
         for kw in keywords.keys():
             if kw in disp_ops.keys() and keywords[kw] != None:
                 disp_ops[kw] = keywords[kw]
@@ -765,7 +765,9 @@ class CkgRunState:
         # Send trigger ASAP after flip
         if self.disp_ops['trigser'] or self.disp_ops['trigpar']:
             if self.encode_events() > 0:
-                trigger.send(trigser, trigpar, self.encode_events())
+                trigger.send(self.disp_ops['trigser'],
+                             self.disp_ops['trigpar'],
+                             self.encode_events())
 
         # Log when triggers are sent
         if self.disp_ops['logtime'] and self.encode_events() > 0:
@@ -792,7 +794,7 @@ class CkgRunState:
             del self.canvas
         self.window.close()
         if self.disp_ops['trigser'] or self.disp_ops['trigpar']:
-            trigger.quit(trigser, trigpar)
+            trigger.quit(self.disp_ops['trigser'], self.disp_ops['trigpar'])
         if self.disp_ops['priority'] != None:
             priority.set('normal')
 

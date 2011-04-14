@@ -44,6 +44,19 @@ def store_tuple(nargs, sep, typecast=None, castargs=[]):
             setattr(args, self.dest, tuple(vallist))
     return TupleAction
 
+def store_truth(y_words=['t','y'], n_words=['f', 'n']):
+    """Returns argparse action that stores the truth based on keywords."""
+    class TruthAction(argparse.Action):
+        def __call__(self, parser, args, values, option_string=None):
+            if values in y_words:
+                setattr(args, self.dest, True)
+            elif values in n_words:
+                setattr(args, self.dest, False)
+            else:
+                msg = 'true/false keyword unrecognized'
+                raise argparse.ArgumentError(self, msg)
+    return TruthAction
+
 # The main parser invoked at the command-line
 PARSER = argparse.ArgumentParser(
     description='''Generate flashing checkerboard patterns for display
@@ -749,10 +762,12 @@ class CkgCmd(cmd.Cmd):
     display_parser.add_argument('-r', '--repeats', metavar='N', type=int,
                                 help='''repeatedly display specified display
                                         groups N number of times''')
-    display_parser.add_argument('-wl', '--waitless', action='store_true',
+    display_parser.add_argument('-wl', '--waitless', action=store_truth(),
+                                metavar='t/f',
                                 help='''do not add waitscreens before the
                                         start of each repeat''')
-    display_parser.add_argument('-f', '--fullscreen', action='store_true',
+    display_parser.add_argument('-f', '--fullscreen', action=store_truth(),
+                                metavar='t/f',
                                 help='sets fullscreen mode, ESC to quit')
     display_parser.add_argument('-p', '--priority', metavar='LEVEL',
                                 help='''set priority while displaying,
@@ -760,22 +775,28 @@ class CkgCmd(cmd.Cmd):
                                         less dropped frames (choices:
                                         0-3, low, normal, high,
                                         realtime)''')
-    display_parser.add_argument('-pt', '--phototest', action='store_true',
+    display_parser.add_argument('-pt', '--phototest', action=store_truth(),
+                                metavar='t/f',
                                 help='''draw white test rectangle in topleft
                                         corner of screen when groups become
                                         visible for a photodiode to detect''')
-    display_parser.add_argument('-pb', '--photoburst', action='store_true',
+    display_parser.add_argument('-pb', '--photoburst', action=store_truth(),
+                                metavar='t/f',
                                 help='''make checkerboards only draw first
                                         color for one frame to facilitate
                                         testing with a photodiode''')
-    display_parser.add_argument('-lt', '--logtime', action='store_true',
+    display_parser.add_argument('-lt', '--logtime', action=store_truth(),
+                                metavar='t/f',
                                 help='output frame timestamps to a log file')
-    display_parser.add_argument('-ld', '--logdur', action='store_true',
+    display_parser.add_argument('-ld', '--logdur', action=store_truth(),
+                                metavar='t/f',
                                 help='output frame durations to a log file')
-    display_parser.add_argument('-ss', '--trigser', action='store_true',
+    display_parser.add_argument('-ss', '--trigser', action=store_truth(),
+                                metavar='t/f',
                                 help='''send triggers through the serial port 
                                         when shapes are being displayed''')
-    display_parser.add_argument('-sp', '--trigpar', action='store_true',
+    display_parser.add_argument('-sp', '--trigpar', action=store_truth(),
+                                metavar='t/f',
                                 help='''send triggers through the parallel port
                                         when shapes are being displayed''')
     display_parser.add_argument('-fpst', metavar='M', type=int,
@@ -783,14 +804,17 @@ class CkgCmd(cmd.Cmd):
                                         checkerboard is sent after the shape
                                         undergoes M color flips (default:
                                         disabled, M=0)''')
-    display_parser.add_argument('-fc', '--freqcheck', action='store_true',
+    display_parser.add_argument('-fc', '--freqcheck', action=store_truth(),
+                                metavar='t/f',
                                 help='''only send triggers for board color
                                         flips at the start, middle and end
                                         of the run''')
-    display_parser.add_argument('-et', '--eyetrack', action='store_true',
+    display_parser.add_argument('-et', '--eyetrack', action=store_truth(),
+                                metavar='t/f',
                                 help='''use eyetracking to ensure that subject
                                         fixates on the cross in the center''')
-    display_parser.add_argument('-eu', '--etuser', action='store_true',
+    display_parser.add_argument('-eu', '--etuser', action=store_truth(),
+                                metavar='t/f',
                                 help='''allow user to select eyetracking video
                                         source from a dialog''')
     display_parser.add_argument('-ev', '--etvideo', metavar='path',
@@ -808,7 +832,8 @@ class CkgCmd(cmd.Cmd):
                                         displayed after every J groups have
                                         been appended to the list (default:
                                         J=total number of groups)''')
-    display_parser.add_argument('-nl', '--nolog', action='store_true',
+    display_parser.add_argument('-nl', '--nolog', action=store_truth(),
+                                metavar='t/f',
                                 help='''do not write a log file''')
     display_parser.add_argument('order', nargs='*', metavar='id', type=int,
                                 help='''order in which groups should be
