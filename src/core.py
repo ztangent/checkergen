@@ -399,6 +399,9 @@ class CkgProj:
                                disp_ops=disp_ops, order=order)
         runstate.start()
         waitscreen = CkgWaitScreen()
+        # Set order id to be sent if necessary
+        if order in self.orders:
+            runstate.events['ord_id'] = self.orders.index(order)
 
         # Count through pre
         for count in range(self.pre * self.fps):
@@ -562,7 +565,8 @@ class CkgRunState:
                      ('durstamps', []),
                      ('trigstamps', [])])
 
-    DEFAULTS['events'] = dict([('blk_on', False),
+    DEFAULTS['events'] = dict([('ord_id', None),
+                               ('blk_on', False),
                                ('blk_off', False),
                                ('track_on', False),
                                ('track_off', False),
@@ -741,12 +745,11 @@ class CkgRunState:
 
         # Send trigger ASAP after flip
         if self.disp_ops['trigser'] or self.disp_ops['trigpar']:
-            trigger.send(trigser, trigpar, self.encode_events())
+            if self.encode_events() > 0:
+                trigger.send(trigser, trigpar, self.encode_events())
 
         # Log when triggers are sent
-        if (self.disp_ops['logtime'] and
-            (self.disp_ops['trigser'] or self.disp_ops['trigpar']) and
-            self.encode_events() != None):
+        if self.disp_ops['logtime'] and self.encode_events() > 0:
             self.trigstamps.append(self.encode_events())
         else:
             self.trigstamps.append('')
@@ -773,6 +776,39 @@ class CkgRunState:
             trigger.quit(trigser, trigpar)
         if self.disp_ops['priority'] != None:
             priority.set('normal')
+
+    def encode_events(self):
+        """Hard code specific trigger values for events."""
+        code = 0
+        if self.events['ord_id'] != None:
+            code = self.events['ord_id'] + 1
+        elif self.events['blk_on']:
+            code = 128
+        elif self.events['blk_off']:
+            code = 127
+        else:
+            mult = 0
+            if self.events['fix_on']:
+                mult = 4
+            elif self.events['track_on']:
+                mult = 3
+            if self.events['track_off']:
+                mult = 1
+            elif self.events['fix_off']:
+                mult = 2
+            if self.events['grp_on']:
+                code = 100 + mult
+            elif self.events['grp_off']:
+                code = 90 + mult
+            elif len(self.events['sids']) > 0:
+                code = ((0 in self.events['sids'])*2**0 +
+                        (1 in self.events['sids'])*2**1 +
+                        (2 in self.events['sids'])*2**2 +
+                        (3 in self.events['sids'])*2**3)
+                code = mult * 16 + (code + 1)
+            else:
+                code = 110 + mult
+        return code
 
     def log(self, path=None):
         """Write a log file for the experimental run in the CSV format."""

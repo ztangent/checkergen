@@ -1,12 +1,6 @@
 """Module for sending triggers upon various events through the serial or 
 parallel ports."""
 
-NULL_STATE = {'block': 0, 'tracking': 0, 'fixation': 0,
-              'group': 0, 'shape': 0, 'gid': 0, 'sid': 0,
-              'event': 0}
-CUR_STATE = dict(NULL_STATE)
-PREV_STATE = dict(NULL_STATE)
-
 SERPORT = None
 PARPORT = None
 
@@ -41,9 +35,9 @@ if available['serial']:
         global SERPORT
         SERPORT = serial.Serial(0)
 
-    def ser_send(statebyte):
+    def ser_send(code):
         global SERPORT
-        SERPORT.write(statebyte)
+        SERPORT.write(code)
 
     def ser_quit():
         global SERPORT
@@ -56,9 +50,9 @@ if available['parallel']:
         PARPORT = parallel.Parallel()
         PARPORT.setData(0)
 
-    def par_send(statebyte):
+    def par_send(code):
         global PARPORT
-        PARPORT.setData(statebyte)
+        PARPORT.setData(code)
 
     def par_quit():
         global PARPORT
@@ -66,43 +60,19 @@ if available['parallel']:
         PARPORT = None
 
 def init(trigser, trigpar):
-    global CUR_STATE
-    global PREV_STATE
-    CUR_STATE = NULL_STATE
-    PREV_STATE = NULL_STATE
     if trigser:
         ser_init()
     if trigpar:
         par_init()
 
-def set_state(fieldname, value):
-    global CUR_STATE
-    global PREV_STATE
-    PREV_STATE = CUR_STATE
-    CUR_STATE[fieldname] = value
-    CUR_STATE['event'] = 1
-    
-def set_null():
-    set_state(NULL_STATE)
-
-def send(trigser, trigpar):
-    statebyte = ''.join([str(CUR_STATE[name]) for 
-                         name in ['block', 'tracking', 'fixation',
-                                  'group', 'shape']]).ljust(8,'0')
-    statebyte = int(statebyte, 2)
-    # Preferentially send group id over shape id
-    if CUR_STATE['group'] != PREV_STATE['group']:
-        statebyte += CUR_STATE['gid'] + 1
-    elif CUR_STATE['shape'] > PREV_STATE['shape']:
-        statebyte += CUR_STATE['sid']
-    if CUR_STATE != PREV_STATE:
-        if trigser:
-            ser_send(statebyte)
-        if trigpar:
-            par_send(statebyte)
+def send(trigser, trigpar, code):
+    if trigser:
+        ser_send(code)
+    if trigpar:
+        par_send(code)
 
 def quit(trigser, trigpar):
-    set_null()
+    send(trigser, trigpar, 0)
     if trigser:
         ser_quit()
     if trigpar:
