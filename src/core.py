@@ -16,6 +16,7 @@ import os
 import sys
 import re
 import csv
+import copy
 import random
 import itertools
 from datetime import datetime
@@ -146,7 +147,7 @@ class CkgProj:
             if kw in keywords.keys():
                 setattr(self, kw, keywords[kw])
             else:
-                setattr(self, kw, self.__class__.DEFAULTS[kw])
+                setattr(self, kw, copy.deepcopy(self.__class__.DEFAULTS[kw]))
         self.groups = []
 
     def __setattr__(self, name, value):
@@ -442,7 +443,7 @@ class CkgProj:
                 for gid in blk:
                     if gid != None:
                         self.groups[gid].display(runstate)
-                runstate.events['blk_on'] = True            
+                runstate.events['blk_off'] = True            
         # Count through post
         for count in range(self.post * self.fps):
             if runstate.window.has_exit:
@@ -582,7 +583,7 @@ class CkgRunState:
             if kw in keywords.keys():
                 setattr(self, kw, keywords[kw])
             else:
-                setattr(self, kw, self.__class__.DEFAULTS[kw])
+                setattr(self, kw, copy.deepcopy(self.__class__.DEFAULTS[kw]))
 
     def start(self):
         """Initialize all subsystems and start the run."""
@@ -760,7 +761,7 @@ class CkgRunState:
             self.fbo.clear()
         else:
             self.window.clear()
-        self.events = self.__class__.DEFAULTS['events']
+        self.events = copy.deepcopy(self.__class__.DEFAULTS['events'])
 
         self._count += 1
 
@@ -806,7 +807,7 @@ class CkgRunState:
                         (2 in self.events['sids'])*2**2 +
                         (3 in self.events['sids'])*2**3)
                 code = mult * 16 + (code + 1)
-            else:
+            elif mult > 0:
                 code = 110 + mult
         return code
 
@@ -864,7 +865,7 @@ class CkgDisplayGroup:
             if kw in keywords.keys():
                 setattr(self, kw, keywords[kw])
             else:
-                setattr(self, kw, self.__class__.DEFAULTS[kw])
+                setattr(self, kw, copy.deepcopy(self.__class__.DEFAULTS[kw]))
         self.shapes = []
         self.reset()
 
@@ -895,7 +896,7 @@ class CkgDisplayGroup:
             for n, shape in enumerate(self.shapes):
                 if shape.flipped:
                     self._flip_count[n] += 1
-                if self._flip_count[n] >= fpst:
+                if self._flip_count[n] >= runstate.disp_ops['fpst']:
                     runstate.events['sids'].add(n)
                     self._flip_count[n] = 0
         # Update contained shapes
@@ -909,7 +910,7 @@ class CkgDisplayGroup:
             if runstate.window.has_exit:
                 break
             runstate.update()
-        runstate.events['blk_on'] = True
+        runstate.events['grp_on'] = True
         if runstate.disp_ops['eyetrack']:
             runstate.fix_fail = False
             renstate.true_fail = False
@@ -919,7 +920,7 @@ class CkgDisplayGroup:
             self.draw(runstate)
             self.update(runstate)
             runstate.update()
-        runstate.events['blk_off'] = True
+        runstate.events['grp_off'] = True
         if runstate.disp_ops['eyetrack']:
             if runstate.fix_fail:
                 runstate.true_fail = True
@@ -978,7 +979,7 @@ class CkgWaitScreen(CkgDisplayGroup):
             if kw in keywords.keys():
                 setattr(self, kw, keywords[kw])
             else:
-                setattr(self, kw, self.__class__.DEFAULTS[kw])
+                setattr(self, kw, copy.deepcopy(self.__class__.DEFAULTS[kw]))
         if len(self.cont_keys) != len(self.infos):
             msg = 'list length mismatch between cont_keys and infos'
             raise IndexError(msg)
@@ -1052,7 +1053,7 @@ class CheckerBoard(CheckerShape):
             if kw in keywords.keys():
                 setattr(self, kw, keywords[kw])
             else:
-                setattr(self, kw, self.__class__.DEFAULTS[kw])
+                setattr(self, kw, copy.deepcopy(self.__class__.DEFAULTS[kw]))
         self.reset()
 
     def __setattr__(self, name, value):
