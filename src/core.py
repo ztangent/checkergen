@@ -264,7 +264,7 @@ class CkgProj:
                 print "using default value '{0}' instead...".format(value)
             setattr(self, var, value)
         for d_name in dicts_to_load:
-            d = self.__class__.DEFAULTS[d_name]
+            d = copy.deepcopy(self.__class__.DEFAULTS[d_name])
             try:
                 d_el = [node for node in project.childNodes if
                         node.localName == d_name and
@@ -438,7 +438,7 @@ class CkgProj:
                 else:
                     self.groups[gid].display(runstate)
                 # Append failed groups
-                if runstate.disp_ops['eyetrack'] and runstate.truefail:
+                if runstate.disp_ops['eyetrack'] and runstate.true_fail:
                     if len(runstate.add_gids) < runstate.disp_ops['tryagain']:
                         runstate.add_gids.append(gid)
                     else:
@@ -850,14 +850,14 @@ class CkgRunState:
             writer.writerow(self.disp_ops.values())
             writer.writerow(['order:'] + self.order)
             if self.disp_ops['eyetrack']:
-                write.writerow(['groups added'])
+                writer.writerow(['groups added'])
                 for blk in grouper(self.add_gids,
                                    self.disp_ops['trybreak'], ''):
-                    write.writerow(blk)
-                write.writerow(['groups failed'])
+                    writer.writerow(blk)
+                writer.writerow(['groups failed'])
                 for blk in grouper(self.fail_gids,
                                    self.disp_ops['trybreak'], ''):
-                    write.writerow(blk)
+                    writer.writerow(blk)
             if self.disp_ops['logtime'] or self.disp_ops['logdur']:
                 stamps = [self.timestamps, self.durstamps, self.trigstamps]
                 writer.writerow(['timestamps', 'durations', 'triggers'])
@@ -934,7 +934,7 @@ class CkgDisplayGroup:
         runstate.events['grp_on'] = True
         if runstate.disp_ops['eyetrack']:
             runstate.fix_fail = False
-            renstate.true_fail = False
+            runstate.true_fail = False
         for count in range(self.disp * runstate.fps):
             if runstate.window.has_exit:
                 break

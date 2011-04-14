@@ -820,8 +820,7 @@ class CkgCmd(cmd.Cmd):
     display_parser.add_argument('-ev', '--etvideo', metavar='path',
                                 help='''path (with no spaces) to eyetracking
                                         video file to be used as the source''')
-    display_parser.add_argument('-ta', '--tryagain', metavar='I',
-                                type=int, default=0,
+    display_parser.add_argument('-ta', '--tryagain', metavar='I', type=int,
                                 help='''append groups during which subject
                                         failed to fixate up to I times to the
                                         list of groups to be displayed
