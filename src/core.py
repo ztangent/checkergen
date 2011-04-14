@@ -689,9 +689,10 @@ class CkgRunState:
                     format(sys.platform)
                 raise NotImplementedError(msg)
             else:
-                if self.disp_ops['priority'].isdigit():
-                    self.disp_ops['priority'] = int(self.disp_ops['priority'])
-                priority.set(self.disp_ops['priority'])
+                try:
+                    priority.set(self.disp_ops['priority'])
+                except ValueError:
+                    priority.set(int(self.disp_ops['priority']))
 
         # Start timers
         if self.disp_ops['logtime']:
