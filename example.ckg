@@ -19,6 +19,7 @@
         <trigser>False</trigser>
         <trigpar>False</trigpar>
         <fpst>0</fpst>
+        <freqcheck>False</freqcheck>
         <phototest>False</phototest>
         <photoburst>False</photoburst>
         <eyetrack>False</eyetrack>
