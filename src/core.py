@@ -38,11 +38,10 @@ else:
 
 CKG_FMT = 'ckg'
 LOG_FMT = 'csv'
-XML_NAMESPACE = 'http://github.com/ZOMGxuan/checkergen'
 MAX_EXPORT_FRAMES = 100000
-INT_HALF_PERIODS = True
-EXPORT_FMTS = ['png']
 EXPORT_DIR_SUFFIX = '-anim'
+XML_NAMESPACE = 'http://github.com/ZOMGxuan/checkergen'
+INT_HALF_PERIODS = True
 FIX_POS = (0, 0)
 FIX_RANGE = (20, 20)
 FIX_PER = 350
@@ -89,7 +88,6 @@ class CkgProj:
                             ('fps',  60),
                             ('res',  (800, 600)),
                             ('bg',  (127, 127, 127)),
-                            ('export_fmt',  'png'),
                             ('pre',  0),
                             ('post',  0),
                             ('cross_cols',  ((0, 0, 0), (255, 0, 0))),
@@ -132,8 +130,6 @@ class CkgProj:
 
         bg -- background color of the animation as a 3-tuple (R, G, B)
 
-        export_fmt -- image format for animation to be exported as
-
         pre -- time in seconds a blank screen will be shown before any
         display groups
 
@@ -165,10 +161,6 @@ class CkgProj:
             if len(value) != 3:
                 raise ValueError
             value = tuple([int(v) for v in value])
-        elif name == 'export_fmt':
-            if value not in EXPORT_FMTS:
-                msg = 'image format not recognized or supported'
-                raise FileFormatError(msg)
         elif name == 'cross_cols':
             if len(value) != 2:
                 raise ValueError
@@ -470,12 +462,10 @@ class CkgProj:
             runstate.log()
 
     def export(self, export_dir, export_duration, groupq=[],
-               export_fmt=None, folder=True, force=False):
+               folder=True, force=False):
         if not os.path.isdir(export_dir):
                 msg = 'export path is not a directory'
                 raise IOError(msg)
-        if export_fmt == None:
-            export_fmt = self.export_fmt
 
         # Set-up groups and variables that control their display
         if groupq == []:
@@ -548,7 +538,7 @@ class CkgProj:
             savepath = \
                 os.path.join(export_dir, 
                              '{0}{2}.{1}'.
-                             format(self.name, export_fmt,
+                             format(self.name, 'png',
                                     repr(count).zfill(numdigits(frames-1))))
             canvas.save(savepath)
 

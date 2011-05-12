@@ -73,8 +73,6 @@ PARSER.add_argument('-e', '--export', dest='export_dur', metavar='DUR',
                     help='export DUR seconds of the project animation')
 PARSER.add_argument('-f', '--fullscreen', action='store_true',
                     help='animation displayed in fullscreen mode')
-# PARSER.add_argument('--fmt', dest='export_fmt', choices=core.EXPORT_FMTS,
-#                     help='image format for animation to be exported as')
 PARSER.add_argument('--dir', dest='export_dir', 
                     default=os.getcwd(), metavar='PATH',
                     help='''destination directory for export
@@ -230,10 +228,6 @@ class CkgCmd(cmd.Cmd):
                             help='''background color of the canvas
                                     (color format: R,G,B,
                                     component range from 0-255)''')
-    # set_parser.add_argument('--fmt', dest='export_fmt', 
-    #                         choices=core.EXPORT_FMTS,
-    #                         help='''image format for animation
-    #                                 to be exported as''')
     set_parser.add_argument('--pre', type=to_decimal, metavar='SECONDS',
                               help='''time in seconds a blank screen will
                                       be shown before any display groups''')
@@ -681,13 +675,11 @@ class CkgCmd(cmd.Cmd):
                 'fps'.rjust(7),\
                 'resolution'.rjust(14),\
                 'bg color'.rjust(18)
-                # 'format'.rjust(7)
             print \
                 ls_str(self.cur_proj.name).rjust(16),\
                 ls_str(self.cur_proj.fps).rjust(7),\
                 ls_str(self.cur_proj.res).rjust(14),\
                 ls_str(self.cur_proj.bg).rjust(18)
-                # ls_str(self.cur_proj.export_fmt).rjust(7)
             print \
                 'pre-display'.rjust(26),\
                 'post-display'.rjust(26)
@@ -907,9 +899,6 @@ class CkgCmd(cmd.Cmd):
                               description='''Exports animation as an image
                                              sequence (in a folder) to the
                                              specified directory.''')
-    # export_parser.add_argument('--fmt', dest='export_fmt',
-    #                            choices=core.EXPORT_FMTS,
-    #                            help='image format for export')
     export_parser.add_argument('-n','--nofolder',
                                dest='folder', action='store_false',
                                help='''force images not to exported in 
@@ -974,7 +963,6 @@ class CkgCmd(cmd.Cmd):
                         self.cur_proj.export(export_dir=args.dir,
                                              export_duration=args.duration,
                                              groupq=groupq,
-                                             export_fmt=None,
                                              folder=args.folder,
                                              force=True)
                         break
