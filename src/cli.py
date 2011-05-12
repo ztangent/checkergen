@@ -615,13 +615,15 @@ class CkgCmd(cmd.Cmd):
                                          checkerboard settings. If no group ids
                                          are specified, all display groups 
                                          are listed.''')
-    ls_parser.add_argument('gidlist', nargs='*', metavar='gid', type=int,
+    ls_parser.add_argument('gids', nargs='*', metavar='gid', type=int,
                            help='''ids of the display groups to be listed''')
     ls_group = ls_parser.add_mutually_exclusive_group()
     ls_group.add_argument('-s', '--settings', action='store_true',
-                           help='list only project settings')
+                          help='list only project settings')
     ls_group.add_argument('-g', '--groups', action='store_true',
-                           help='list only display groups')
+                          help='list only display groups')
+    ls_group.add_argument('-d', '--disp_ops', action='store_true',
+                          help='list display options')
 
     def help_ls(self):
         self.__class__.ls_parser.print_help()
@@ -651,25 +653,27 @@ class CkgCmd(cmd.Cmd):
             return
         
         # Remove duplicates and ascending sort
-        args.gidlist = sorted(set(args.gidlist))
+        args.gids = sorted(set(args.gids))
 
         if len(self.cur_proj.groups) == 0:
-            if len(args.gidlist) > 0:
+            if len(args.gids) > 0:
                 print 'this project has no display groups that can be listed'
             args.settings = True
         else:
-            for gid in args.gidlist[:]:
+            for gid in args.gids[:]:
                 if gid >= len(self.cur_proj.groups) or gid < 0:
-                    args.gidlist.remove(gid)
+                    args.gids.remove(gid)
                     print 'display group', gid, 'does not exist'
-            if args.gidlist == []:
-                args.gidlist = range(len(self.cur_proj.groups))
+            if args.gids == []:
+                args.gids = range(len(self.cur_proj.groups))
             else:
                 # If any (valid) groups are specified
                 # don't show project settings
                 args.groups = True
 
-        if not args.groups:
+        args.show_all = not max(args.settings, args.groups, args.disp_ops)
+
+        if args.show_all or args.settings:
             print 'PROJECT SETTINGS'.center(70,'*')
             print \
                 'name'.rjust(16),\
@@ -694,14 +698,21 @@ class CkgCmd(cmd.Cmd):
                 ls_str(self.cur_proj.cross_cols).rjust(26),\
                 ls_str(self.cur_proj.cross_times).rjust(26)
 
-
-        if not args.settings and not args.groups:
-            # Insert empty line if both groups and project 
-            # settings are listed
+        if args.show_all:
+            # Insert empty line between different info sets
             print ''
 
-        if not args.settings:
-            for i, n in enumerate(args.gidlist):
+        if args.show_all or args.disp_ops:
+            print 'DISPLAY OPTIONS'.center(70,'*')
+            for k, v in self.cur_proj.disp_ops.items():
+                print ''.ljust(20), ls_str(k).ljust(20), ls_str(v).ljust(20)
+
+        if args.show_all:
+            # Insert empty line between different info sets
+            print ''
+
+        if args.show_all or args.groups:
+            for i, n in enumerate(args.gids):
                 if i != 0:
                     # Print newline seperator between each group
                     print ''
