@@ -3,7 +3,6 @@
     <fps>Decimal('60')</fps>
     <res>(800, 600)</res>
     <bg>(127, 127, 127)</bg>
-    <export_fmt>'png'</export_fmt>
     <pre>Decimal('0')</pre>
     <post>Decimal('0')</post>
     <cross_cols>((0, 0, 0), (255, 0, 0))</cross_cols>

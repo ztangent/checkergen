@@ -44,7 +44,8 @@ def store_tuple(nargs, sep, typecast=None, castargs=[]):
             setattr(args, self.dest, tuple(vallist))
     return TupleAction
 
-def store_truth(y_words=['t','y'], n_words=['f', 'n']):
+def store_truth(y_words=['t','y','1','True','true','yes','Yes'],
+                n_words=['f','n','0','False','false','no','No']):
     """Returns argparse action that stores the truth based on keywords."""
     class TruthAction(argparse.Action):
         def __call__(self, parser, args, values, option_string=None):
@@ -68,11 +69,11 @@ PARSER.add_argument('-c', '--cmd', dest='cmd_mode', action='store_true',
                     help='enter command line mode regardless of other options')
 PARSER.add_argument('-d', '--display',
                     dest='display_flag', action='store_true',
-                    help='displays the animation on the screen')
+                    help='displays the stimulus on the screen')
 PARSER.add_argument('-e', '--export', dest='export_dur', metavar='DUR',
-                    help='export DUR seconds of the project animation')
+                    help='export DUR seconds of the stimulus')
 PARSER.add_argument('-f', '--fullscreen', action='store_true',
-                    help='animation displayed in fullscreen mode')
+                    help='stimulus displayed in fullscreen mode')
 PARSER.add_argument('--dir', dest='export_dir', 
                     default=os.getcwd(), metavar='PATH',
                     help='''destination directory for export
@@ -219,10 +220,10 @@ class CkgCmd(cmd.Cmd):
                                               the filename without
                                               the extension''')
     set_parser.add_argument('--fps', type=to_decimal,
-                            help='''number of animation frames
+                            help='''number of stimulus frames
                                     rendered per second''')
     set_parser.add_argument('--res', action=store_tuple(2, ',', int),
-                            help='animation canvas size/resolution in pixels',
+                            help='stimulus canvas size/resolution in pixels',
                             metavar='WIDTH,HEIGHT')
     set_parser.add_argument('--bg', metavar='COLOR', type=to_color,
                             help='''background color of the canvas
@@ -465,7 +466,7 @@ class CkgCmd(cmd.Cmd):
     mk_parser.add_argument('freq', type=to_decimal,
                            help='frequency of color reversal in Hz')
     mk_parser.add_argument('phase', type=to_decimal, nargs='?', default='0',
-                           help='initial phase of animation in degrees')
+                           help='initial phase in degrees')
 
     def help_mk(self):
         self.__class__.mk_parser.print_help()
@@ -523,7 +524,7 @@ class CkgCmd(cmd.Cmd):
     ed_parser.add_argument('--freq', type=to_decimal,
                            help='frequency of color reversal in Hz')
     ed_parser.add_argument('--phase', type=to_decimal,
-                           help='initial phase of animation in degrees')
+                           help='initial phase in degrees')
 
     def help_ed(self):
         self.__class__.ed_parser.print_help()
@@ -747,8 +748,12 @@ class CkgCmd(cmd.Cmd):
                             ls_str(shape.phase).rjust(7)
 
     display_parser = CmdParser(add_help=False, prog='display',
-                               description='''Displays the animation in a
+                               description='''Displays the stimulus in a
                                               window or in fullscreen.''')
+    display_parser.add_argument('-s', '--save', action='store_true',
+                                help='''save specified display flags
+                                        as default flags for project
+                                        instead of presenting stimulus''')
     display_parser.add_argument('-n', '--name', metavar='FOOBAR',
                                 help='''name of log file to be written''')
     display_parser.add_argument('-r', '--repeats', metavar='N', type=int,
@@ -836,7 +841,7 @@ class CkgCmd(cmd.Cmd):
         self.__class__.display_parser.print_help()
 
     def do_display(self, line):
-        """Displays the animation in a window or in fullscreen"""
+        """Displays the stimulus in a window or in fullscreen"""
         if self.cur_proj == None:
             print 'please create or open a project first'
             return
@@ -862,41 +867,63 @@ class CkgCmd(cmd.Cmd):
                     print "error:", str(sys.exc_value)
                     return
 
-        print "displaying...",
-        try:
-            self.cur_proj.display(name=args.name,
-                                  repeats=args.repeats,
-                                  waitless=args.waitless,
-                                  fullscreen=args.fullscreen,
-                                  priority=args.priority,
-                                  logtime=args.logtime,
-                                  logdur=args.logdur,
-                                  trigser=args.trigser,
-                                  trigpar=args.trigpar,
-                                  fpst=args.fpst,
-                                  freqcheck=args.freqcheck,
-                                  phototest=args.phototest,
-                                  photoburst=args.photoburst,
-                                  eyetrack=args.eyetrack,
-                                  etuser=args.etuser,
-                                  etvideo=args.etvideo,
-                                  tryagain=args.tryagain,
-                                  trybreak=args.trybreak,
-                                  nolog=args.nolog,
-                                  order=args.order)
-        except (IOError, NotImplementedError, eyetracking.EyetrackingError):
-            print ''
-            print "error:", str(sys.exc_value)
-            if args.priority != None:
-                try:
-                    priority.set('normal')
-                except:
-                    pass
-            return
-        print "done"
+        if args.save:
+            self.cur_proj.set_display_flags(repeats=args.repeats,
+                                            waitless=args.waitless,
+                                            fullscreen=args.fullscreen,
+                                            priority=args.priority,
+                                            logtime=args.logtime,
+                                            logdur=args.logdur,
+                                            trigser=args.trigser,
+                                            trigpar=args.trigpar,
+                                            fpst=args.fpst,
+                                            freqcheck=args.freqcheck,
+                                            phototest=args.phototest,
+                                            photoburst=args.photoburst,
+                                            eyetrack=args.eyetrack,
+                                            etuser=args.etuser,
+                                            etvideo=args.etvideo,
+                                            tryagain=args.tryagain,
+                                            trybreak=args.trybreak,
+                                            nolog=args.nolog)
+            print "display flags saved to project"
+        else:
+            print "displaying...",
+            try:
+                self.cur_proj.display(name=args.name,
+                                      repeats=args.repeats,
+                                      waitless=args.waitless,
+                                      fullscreen=args.fullscreen,
+                                      priority=args.priority,
+                                      logtime=args.logtime,
+                                      logdur=args.logdur,
+                                      trigser=args.trigser,
+                                      trigpar=args.trigpar,
+                                      fpst=args.fpst,
+                                      freqcheck=args.freqcheck,
+                                      phototest=args.phototest,
+                                      photoburst=args.photoburst,
+                                      eyetrack=args.eyetrack,
+                                      etuser=args.etuser,
+                                      etvideo=args.etvideo,
+                                      tryagain=args.tryagain,
+                                      trybreak=args.trybreak,
+                                      nolog=args.nolog,
+                                      order=args.order)
+            except (IOError, NotImplementedError,
+                    eyetracking.EyetrackingError):
+                print ''
+                print "error:", str(sys.exc_value)
+                if args.priority != None:
+                    try:
+                        priority.set('normal')
+                    except:
+                        pass
+                return
+            print "done"
 
     export_parser = CmdParser(add_help=False, prog='export',
-                              description='''Exports animation as an image
+                              description='''Exports stimulus as an image
                                              sequence (in a folder) to the
                                              specified directory.''')
     export_parser.add_argument('-n','--nofolder',
@@ -908,9 +935,9 @@ class CkgCmd(cmd.Cmd):
                                         groups N number of times''')
     export_parser.add_argument('duration', nargs='?',
                                type=to_decimal, default='Infinity',
-                               help='''number of seconds of the animation
+                               help='''number of seconds of the stimulus
                                        that should be exported (default:
-                                       as long as the entire animation)''')
+                                       as long as the entire stimulus)''')
     export_parser.add_argument('dir', nargs='?', default=os.getcwd(),
                                help='''destination directory for export
                                        (default: current working directory)''')
@@ -923,7 +950,7 @@ class CkgCmd(cmd.Cmd):
         self.__class__.export_parser.print_help()
 
     def do_export(self, line):
-        """Exports animation an image sequence to the specified directory."""
+        """Exports stimulus as an image sequence to the specified directory."""
         if self.cur_proj == None:
             print 'please create or open a project first'
             return
