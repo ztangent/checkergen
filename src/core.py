@@ -37,7 +37,7 @@ else:
     from collections import OrderedDict
 
 CKG_FMT = 'ckg'
-LOG_FMT = 'csv'
+LOG_FMT = 'log'
 MAX_EXPORT_FRAMES = 100000
 EXPORT_DIR_SUFFIX = '-anim'
 XML_NAMESPACE = 'http://github.com/ZOMGxuan/checkergen'
