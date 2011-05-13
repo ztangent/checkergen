@@ -42,9 +42,6 @@ MAX_EXPORT_FRAMES = 100000
 EXPORT_DIR_SUFFIX = '-anim'
 XML_NAMESPACE = 'http://github.com/ZOMGxuan/checkergen'
 INT_HALF_PERIODS = True
-FIX_POS = (0, 0)
-FIX_RANGE = (20, 20)
-FIX_PER = 350
 SANS_SERIF = ('Helvetica', 'Arial', 'FreeSans')
 
 def xml_get(parent, namespace, name, index=0):
@@ -719,9 +716,9 @@ class CkgRunState:
         # Check for tracking and fixation
         if self.disp_ops['eyetrack']:
             self.old_tracked = self.tracked
-            self.tracked = eyetracking.is_tracked()
+            self.tracked = eyetracking.is_tracked(self.fps)
             self.old_fixated = self.fixated
-            self.fixated = eyetracking.is_fixated(FIX_POS, FIX_RANGE, FIX_PER)
+            self.fixated = eyetracking.is_fixated(self.fps)
 
             if self.fixated:
                 # Draw normal cross color if fixating

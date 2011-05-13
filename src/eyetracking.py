@@ -2,6 +2,13 @@
 
 import os.path
 
+from utils import *
+
+FIX_POS = (0, 0)
+FIX_RANGE = (20, 20)
+FIX_PER = 300
+TRACK_PER = 300
+
 try:
     import win32com.client
     available = True
@@ -35,7 +42,10 @@ if available:
     # For easier access to constants and standardization with MATLAB interface
     CRS = win32com.client.constants
     
-    lastgoodstamp = 0
+    lastfixstatus = False
+    fixcount = 0
+    lasttrackstatus = False
+    trackcount = 0
 
     def select_source(user_select = False, path = None):
         if user_select:
@@ -126,13 +136,34 @@ if available:
         """Stop tracking the eye."""
         VET.StopTracking()
 
-    def is_tracked():
-        """Returns true if the eye is being tracked."""
-        data = VET.GetLatestEyePosition(DummyResultSet)[1]
-        return data.Tracked
+    def is_tracked(fps, track_period=TRACK_PER):
+        """Returns true if the eye is being tracked.
 
-    def is_fixated(fix_pos, fix_range, fix_period):
-        """Checks whether subject is fixating on specificied location.
+        fps -- frames per second at which stimulus is running
+
+        track_period -- duration in milliseconds during which eye has to
+        be consistently tracked or untracked in order for value returned
+        by this function to change
+
+        """
+        global lasttrackstatus
+        global trackcount
+        data = VET.GetLatestEyePosition(DummyResultSet)[1]
+        if data.Tracked != lasttrackstatus:
+            trackcount += 1
+        else:
+            trackcount = 0
+        if trackcount >= track_period / to_decimal(1000) * fps:
+            trackcount = 0
+            lasttrackstatus = data.Tracked
+        return lasttrackstatus
+
+    def is_fixated(fps, fix_pos=FIX_POS,
+                        fix_range=FIX_RANGE,
+                        fix_period=FIX_PER):
+        """Checks whether subject is fixating on specified location.
+
+        fps -- frames per second at which stimulus is running
 
         fix_pos -- (x, y) position of desired fixation location in mm
         from center of screen
@@ -140,25 +171,25 @@ if available:
         fix_range -- (width, height) of box surrounding fix_pos within
         which fixation is allowed (in mm)
 
-        fix_period -- duration in milliseconds within which subject is
-        assumed to continue fixating after fixation is detected at a 
-        specific time
+        fix_period -- duration in milliseconds during which eye has to
+        be consistently fixated or not fixated in order for value returned
+        by this function to change
 
         """
-        global lastgoodstamp
-        if VET.CalibrationStatus()[0] == 0:
-            msg = 'subject not yet calibrated'
-            raise EyetrackingError(msg)
+        global lastfixstatus
+        global fixcount
         data = VET.GetLatestEyePosition(DummyResultSet)[1]
         pos = (data.ScreenPositionXmm, data.ScreenPositionYmm)
         diff = [abs(p - fp) for p, fp in zip(pos, fix_pos)]
+        curfixstatus = False
         if data.Tracked == True:
             if diff[0] < fix_range[0] and diff[1] < fix_range[1]:
-                lastgoodstamp = data.TimeStamp
-                return True
-            elif (data.Timestamp - lastgoodstamp) <= fix_period:
-                return True
-        elif (data.Timestamp - lastgoodstamp) <= fix_period:
-            return True
-
-        return False
+                curfixstatus = True
+        if curfixstatus != lastfixstatus:
+            fixcount += 1
+        else:
+            fixcount = 0
+        if fixcount >= fix_period / to_decimal(1000) * fps:
+            fixcount = 0
+            lastfixstatus = curfixstatus
+        return lastfixstatus
