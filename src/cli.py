@@ -1091,7 +1091,7 @@ class CkgCmd(cmd.Cmd):
             else:
                 print "error:", str(sys.exc_value)
                 return
-        if len(path) > 0:
+        if path!= None and len(path) > 0:
             print "calibration file successfully loaded"
 
     etsetup_parser = CmdParser(add_help=False, prog='etsetup',
