@@ -39,8 +39,16 @@ def to_color(s, sep=','):
         raise ValueError
     return c
 
-def cyclic_permute(self, sequence):
+def to_list(s, sep=',', typecast=None):
+    """Cast comma separated values to a list."""
+    l = s.split(sep)
+    if typecast != None:
+        l = [typecast(i) for i in l]
+    return l
+
+def cyclic_permute(sequence):
     """Return a list of all cyclic permutations of supplied sequence."""
+    n = len(sequence)
     return [[sequence[i - j] for i in range(n)] for j in range(n, 0, -1)]
 
 # From itertools documentation

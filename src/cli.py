@@ -21,12 +21,12 @@ if sys.platform == 'win32':
 CMD_INTRO = '\n'.join(["Enter 'help' for a list of commands.",
                        "Enter 'quit' or {0} to exit.".format(CMD_EOF_STRING)])
 
-def store_tuple(nargs, sep, typecast=None, castargs=[]):
-    """Returns argparse action that stores a tuple."""
-    class TupleAction(argparse.Action):
+def store_list(nargs=None, sep=',', typecast=None, castargs=[]):
+    """Returns argparse action that stores a list or tuple."""
+    class ListAction(argparse.Action):
         def __call__(self, parser, args, values, option_string=None):
             vallist = values.split(sep)
-            if len(vallist) != nargs:
+            if nargs != None and len(vallist) != nargs:
                 msg = ("argument '{f}' should be a list of " + 
                        "{nargs} values separated by '{sep}'").\
                        format(f=self.dest,nargs=nargs,sep=sep)
@@ -41,8 +41,11 @@ def store_tuple(nargs, sep, typecast=None, castargs=[]):
                                "is of the wrong type").\
                                format(val=vallist[n],f=self.dest)
                         raise argparse.ArgumentError(self, msg)
-            setattr(args, self.dest, tuple(vallist))
-    return TupleAction
+            if nargs == None:
+                setattr(args, self.dest, vallist)
+            else:
+                setattr(args, self.dest, tuple(vallist))
+    return ListAction
 
 def store_truth(y_words=['t','y','1','True','true','yes','Yes'],
                 n_words=['f','n','0','False','false','no','No']):
@@ -216,34 +219,45 @@ class CkgCmd(cmd.Cmd):
 
     set_parser = CmdParser(add_help=False, prog='set',
                           description='''Sets various project settings.''')
-    set_parser.add_argument('--name', help='''project name, always the same as
-                                              the filename without
-                                              the extension''')
-    set_parser.add_argument('--fps', type=to_decimal,
+    set_parser.add_argument('-n', '--name',
+                            help='''project name, always the same as the
+                                    filename without the extension''')
+    set_parser.add_argument('-f', '--fps', type=to_decimal,
                             help='''number of stimulus frames
                                     rendered per second''')
-    set_parser.add_argument('--res', action=store_tuple(2, ',', int),
+    set_parser.add_argument('-r', '--res', action=store_list(2, ',', int),
                             help='stimulus canvas size/resolution in pixels',
                             metavar='WIDTH,HEIGHT')
-    set_parser.add_argument('--bg', metavar='COLOR', type=to_color,
+    set_parser.add_argument('-bg', '--bg', metavar='COLOR', type=to_color,
                             help='''background color of the canvas
                                     (color format: R,G,B,
                                     component range from 0-255)''')
-    set_parser.add_argument('--pre', type=to_decimal, metavar='SECONDS',
-                              help='''time in seconds a blank screen will
-                                      be shown before any display groups''')
-    set_parser.add_argument('--post', type=to_decimal, metavar='SECONDS',
-                              help='''time in seconds a blank screen will
-                                      be shown after all display groups''')
-    set_parser.add_argument('--cross_cols', metavar='COLOR1,COLOR2',
-                            action=store_tuple(2, ',', to_color, [';']),
+    set_parser.add_argument('-pr', '--pre',
+                            type=to_decimal, metavar='SECONDS',
+                            help='''time in seconds a blank screen will
+                                    be shown before any display groups''')
+    set_parser.add_argument('-po', '--post',
+                            type=to_decimal, metavar='SECONDS',
+                            help='''time in seconds a blank screen will
+                                    be shown after all display groups''')
+    set_parser.add_argument('-cc', '--cross_cols', metavar='COLOR1,COLOR2',
+                            action=store_list(2, ',', to_color, [';']),
                             help='''fixation cross coloration
                                     (color format: R;G;B, 
                                     component range from 0-255)''')
-    set_parser.add_argument('--cross_times', metavar='TIME1,TIME2',
-                           action=store_tuple(2, ',', to_decimal),
-                           help='''time in seconds each cross color
-                                   will be displayed''')
+    set_parser.add_argument('-ct', '--cross_times', metavar='TIME1,TIME2',
+                            action=store_list(2, ',', to_decimal),
+                            help='''time in seconds each cross color
+                                    will be displayed''')
+    set_group = set_parser.add_mutually_exclusive_group()
+    set_group.add_argument('-o', '--orders', metavar='ORDER1;ORDER2;...',
+                           action=store_list(None, ';', to_list, [',', int]),
+                           help='''list of orders separated by semicolons
+                                   where each order is a list of group ids
+                                   separated by commas''')
+    set_group.add_argument('-go', '--genorders', action='store_true',
+                           help='''automatically generate a reduced latin
+                                   square for use as group orders''')
 
     def help_set(self):
         self.__class__.set_parser.print_help()
@@ -259,12 +273,27 @@ class CkgCmd(cmd.Cmd):
             self.__class__.set_parser.print_usage()
             return
         names = public_dir(args)
+        names.remove('orders')
+        names.remove('genorders')
         noflags = True
         for name in names:
             val = getattr(args, name)
             if val != None:
                 setattr(self.cur_proj, name, val)
                 noflags = False
+        if args.genorders:
+            orders = cyclic_permute(range(len(self.cur_proj.groups)))
+            try:
+                self.cur_proj.set_group_orders(orders)
+            except ValueError:
+                print "error:", str(sys.exc_value)            
+            noflags = False
+        elif args.orders != None:
+            try:
+                self.cur_proj.set_group_orders(args.orders)
+            except ValueError:
+                print "error:", str(sys.exc_value)
+            noflags = False
         if noflags:
             print "no options specified, please specify at least one"
             self.__class__.set_parser.print_usage()
@@ -446,20 +475,20 @@ class CkgCmd(cmd.Cmd):
                           description='''Makes a new checkerboard in the 
                                          current group with the given 
                                          parameters.''')
-    mk_parser.add_argument('dims', action=store_tuple(2, ',', to_decimal),
+    mk_parser.add_argument('dims', action=store_list(2, ',', to_decimal),
                            help='''width,height of checkerboard in no. of 
                                    unit cells''')
-    mk_parser.add_argument('init_unit', action=store_tuple(2, ',', to_decimal),
+    mk_parser.add_argument('init_unit', action=store_list(2, ',', to_decimal),
                            help='width,height of initial unit cell in pixels')
-    mk_parser.add_argument('end_unit', action=store_tuple(2, ',', to_decimal),
+    mk_parser.add_argument('end_unit', action=store_list(2, ',', to_decimal),
                            help='width,height of final unit cell in pixels')
-    mk_parser.add_argument('position', action=store_tuple(2, ',', to_decimal),
+    mk_parser.add_argument('position', action=store_list(2, ',', to_decimal),
                            help='x,y position of checkerboard in pixels')
     mk_parser.add_argument('anchor', choices=sorted(locations.keys()),
                            help='''location of anchor point of checkerboard
                                    (choices: %(choices)s)''',
                            metavar='anchor')
-    mk_parser.add_argument('cols', action=store_tuple(2, ',', to_color, [';']),
+    mk_parser.add_argument('cols', action=store_list(2, ',', to_color, [';']),
                            help='''color1,color2 of the checkerboard
                                    (color format: R;G;B, 
                                    component range from 0-255)''')
@@ -497,19 +526,19 @@ class CkgCmd(cmd.Cmd):
     ed_parser.add_argument('idlist', nargs='+', metavar='id', type=int,
                            help='''ids of checkerboards in the current 
                                    group to be edited''')
-    ed_parser.add_argument('--dims', action=store_tuple(2, ',', to_decimal),
+    ed_parser.add_argument('--dims', action=store_list(2, ',', to_decimal),
                            help='checkerboard dimensions in unit cells',
                            metavar='WIDTH,HEIGHT')
     ed_parser.add_argument('--init_unit',
-                           action=store_tuple(2, ',', to_decimal),
+                           action=store_list(2, ',', to_decimal),
                            help='initial unit cell dimensions in pixels',
                            metavar='WIDTH,HEIGHT')
     ed_parser.add_argument('--end_unit',
-                           action=store_tuple(2, ',', to_decimal),
+                           action=store_list(2, ',', to_decimal),
                            help='final unit cell dimensions in pixels',
                            metavar='WIDTH,HEIGHT')
     ed_parser.add_argument('--position',
-                           action=store_tuple(2, ',', to_decimal),
+                           action=store_list(2, ',', to_decimal),
                            help='position of checkerboard in pixels',
                            metavar='X,Y')
     ed_parser.add_argument('--anchor', choices=sorted(locations.keys()),
@@ -517,7 +546,7 @@ class CkgCmd(cmd.Cmd):
                                    (choices: %(choices)s)''',
                            metavar='LOCATION')
     ed_parser.add_argument('--cols', metavar='COLOR1,COLOR2',
-                           action=store_tuple(2, ',', to_color, [';']),
+                           action=store_list(2, ',', to_color, [';']),
                            help='''checkerboard colors (color format:
                                    R;G;B, component range 
                                    from 0-255)''')
@@ -1077,7 +1106,7 @@ class CkgCmd(cmd.Cmd):
                                         eye position cannot change for
                                         a fixation to be detected''')
     etsetup_parser.add_argument('-s', '--size', metavar='WIDTH,HEIGHT',
-                                action=store_tuple(2, ',', float),
+                                action=store_list(2, ',', float),
                                 help='physical screen dimensions in mm')
     etsetup_parser.add_argument('-vd', '--viewdist', type=int, metavar='MM',
                                 help='''viewing distance between subject's

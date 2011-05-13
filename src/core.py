@@ -220,54 +220,22 @@ class CkgProj:
     def set_display_flags(self, **keywords):
         """Set default display flags for the project.
 
-        repeats -- number of times specified order of display groups should
-        be repeated
-
-        waitless -- if true, no waitscreens will appear at the start of each
-        repeat
-
-        fullscreen -- animation is displayed fullscreen if true, stretched
-        to fit if necessary
-
-        priority -- priority level to which process should be raised
-
-        logtime -- timestamp of each frame is saved to a logfile if true
-
-        logdur -- duration of each frame is saved to a logfile if true
-
-        trigser -- send triggers through serial port when each group is shown
-
-        trigpar -- send triggers through parallel port when each group is shown
-
-        fpst -- flips per shape trigger, i.e. number of shape color reversals
-        (flips) that occur for a unique trigger to be sent for that shape
-
-        freqcheck -- send fpst only at the start, the middle, and the end
-        for sanity checking of display and trigger fps
-
-        phototest -- draw white rectangle in topleft corner when each group is
-        shown for photodiode to detect
-
-        photoburst -- make checkerboards only draw first color for one frame
-
-        eyetrack -- use eyetracking to ensure subject is fixating on cross
-
-        etuser -- if true, user gets to select eyetracking video source in GUI
+        Same arguments as 'display', excluding 'name' and 'order'.
         
-        etvideo -- optional eyetracking video source file to use instead of
-        live feed
-
-        tryagain -- append groups during which subject failed to fixate up to
-        this number of times to the group queue
-
-        trybreak -- append a wait screen to the group queue every time
-        after this many groups have been appended to the queue
-
         """
 
         for kw in keywords.keys():
             if kw in self.disp_ops.keys() and keywords[kw] != None:
                 self.disp_ops[kw] = keywords[kw]
+        self._dirty = True
+
+    def set_group_orders(self, orders):
+        for order in orders:
+            for gid in order:
+                if gid < -1 or gid >= len(self.groups):
+                    msg = 'invalid group id (out of range)'
+                    raise ValueError(msg)
+        self.orders = orders
         self._dirty = True
 
     def is_dirty(self):
