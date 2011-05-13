@@ -454,6 +454,9 @@ class CkgProj:
                     else:
                         runstate.fail_gids.append(gid)
             runstate.events['blk_off'] = True
+        # Stop freqcheck before added groups
+        if runstate.disp_ops['freqcheck']:
+            runstate.fc_send = False
         # Loop through added groups
         if runstate.disp_ops['eyetrack']:
             for blk in grouper(runstate.add_gids,
