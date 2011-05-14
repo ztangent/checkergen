@@ -38,7 +38,7 @@ else:
 
 CKG_FMT = 'ckg'
 LOG_FMT = 'log'
-MAX_EXPORT_FRAMES = 100000
+MAX_EXPORT_FRAMES = 1000
 EXPORT_DIR_SUFFIX = '-anim'
 XML_NAMESPACE = 'http://github.com/ZOMGxuan/checkergen'
 INT_HALF_PERIODS = True
@@ -109,7 +109,11 @@ class CkgProj:
                                         ('etvideo', None),
                                         ('tryagain', 0),
                                         ('trybreak', None),
-                                        ('nolog', False)])
+                                        ('nolog', False),
+                                        ('export', False),
+                                        ('expo_dir', None),
+                                        ('expo_dur', None),
+                                        ('folder', True)])
 
     def __init__(self, **keywords):
         """Initializes a new project, or loads it from a path.
@@ -340,7 +344,7 @@ class CkgProj:
         return path
 
     def display(self, **keywords):
-        """Displays the project animation on the screen.
+        """Displays the stimulus on the screen.
 
         name -- name that logfile will be saved with
 
@@ -420,7 +424,7 @@ class CkgProj:
 
         # Count through pre
         for count in range(self.pre * self.fps):
-            if runstate.window.has_exit:
+            if runstate.terminate:
                 break
             runstate.update()
         # Loop through repeats
@@ -473,7 +477,7 @@ class CkgProj:
                 runstate.events['blk_off'] = True            
         # Count through post
         for count in range(self.post * self.fps):
-            if runstate.window.has_exit:
+            if runstate.terminate:
                 break
             runstate.update()
 
@@ -482,95 +486,78 @@ class CkgProj:
         if not runstate.disp_ops['nolog']:
             runstate.log()
 
-    def export(self, export_dir, export_duration, groupq=[],
-               folder=True, force=False):
-        if not os.path.isdir(export_dir):
-                msg = 'export path is not a directory'
-                raise IOError(msg)
+    def export(self, **keywords):
+        """Exports the stimulus as a series of images, one image per frame.
 
-        # Set-up groups and variables that control their display
-        if groupq == []:
-            groupq = list(self.groups)
-        n = -1
-        groups_duration = sum([group.duration() for group in groupq])
-        groups_start = self.pre * self.fps
-        groups_stop = (self.pre + groups_duration) * self.fps
-        disp_end = (self.pre + groups_duration + self.post) * self.fps
-        if groups_start == 0 and groups_stop > 0:
-            groups_visible = True
+        repeats -- number of times specified order of display groups should
+        be repeated
+        
+        order -- order in which groups (specified by id) will be displayed
+
+        expo_dir -- directory to which images will be exported
+
+        expo_dur -- time in seconds to which export will be limited
+
+        folder -- if true, images will be contained in a separate folder
+        within export directory
+
+        force -- force export to go through even if a large number
+        of frames are to be exported
+
+        """
+
+        # Create RunState
+        disp_ops = copy.deepcopy(self.__class__.DEFAULTS['disp_ops'])
+        disp_ops['export'] = True
+        for kw in keywords.keys():
+            if kw in disp_ops.keys() and keywords[kw] != None:
+                disp_ops[kw] = keywords[kw]
+        if 'order' in keywords.keys() and len(keywords['order']) > 0:
+            order = keywords['order']
+        elif len(self.orders) > 0:
+            order = random.choice(self.orders)
         else:
-            groups_visible = False
-        count = 0
-
-        # Limit export duration to display duration
-        frames = export_duration * self.fps
-        frames = min(frames, disp_end)
+            order = range(len(self.groups))
+        runstate = CkgRunState(name=self.name,
+                               res=self.res, fps=self.fps, bg=self.bg,
+                               cross_cols=self.cross_cols,
+                               cross_times=self.cross_times,
+                               disp_ops=disp_ops, order=order)
+        runstate.start()
 
         # Warn user if a lot of frames will be exported
-        if frames > MAX_EXPORT_FRAMES and not force:
-            msg = 'very large number ({0}) of frames to be exported'.\
-                format(frames)
+        if 'force' not in keywords.keys():
+            keywords['force'] = False
+        groups_dur = sum([self.groups[i].duration()
+                          for i in order]) * disp_ops['repeats']
+        total_frames = (self.pre + groups_dur + self.post) * self.fps
+        frames = min(total_frames, disp_ops['expo_dur'] * self.fps)
+        if frames > MAX_EXPORT_FRAMES and not keywords['force']:
+            msg = 'large number ({0}) of frames to be exported'.\
+                format(int(frames))
             raise FrameOverflowError(msg)
+        runstate.frames = frames
 
-        # Create folder to store images if necessary
-        if folder:
-            export_dir = os.path.join(export_dir,
-                                      self.name + EXPORT_DIR_SUFFIX)
-            if not os.path.isdir(export_dir):
-                os.mkdir(export_dir)
+        # Count through pre
+        for count in range(self.pre * self.fps):
+            if runstate.terminate:
+                break
+            runstate.update()
+        # Loop through repeats
+        repeats = runstate.disp_ops['repeats']
+        for i in range(repeats):
+            # Loop through display groups
+            for n, gid in enumerate(runstate.order):
+                if gid != -1:
+                    self.groups[gid].display(runstate)
+        # Count through post
+        for count in range(self.post * self.fps):
+            if runstate.terminate:
+                break
+            runstate.update()
 
-        # Create fixation crosses
-        fix_crosses = [graphics.Cross([r/2 for r in self.res],
-                                      (20, 20), col = cross_col) 
-                       for cross_col in self.cross_cols]
-
-        # Set up canvas and framebuffer object
-        canvas = pyglet.image.Texture.create(*self.res)
-        fbo = graphics.Framebuffer(canvas)
-        fbo.start_render()
-        graphics.set_clear_color(self.bg)
-        fbo.clear()
-
-        # Main loop
-        while count < frames:
-            fbo.clear()
-
-            if groups_visible:
-                # Get next group from queue
-                if n < 0 or groupq[n].over:
-                    n += 1
-                    if n >= len(groupq):
-                        groups_visible = False
-                    else:
-                        groupq[n].reset()
-                # Draw and then update group
-                if n >= 0:
-                    groupq[n].draw()
-                    groupq[n].update(fps=self.fps, fpst=0)
-
-            # Draw fixation cross based on current count
-            if (count % (sum(self.cross_times) * self.fps) 
-                < self.cross_times[0] * self.fps):
-                fix_crosses[0].draw()
-            else:
-                fix_crosses[1].draw()                
-
-            # Save current frame to file
-            savepath = \
-                os.path.join(export_dir, 
-                             '{0}{2}.{1}'.
-                             format(self.name, 'png',
-                                    repr(count).zfill(numdigits(frames-1))))
-            canvas.save(savepath)
-
-            # Increment count and set whether groups should be shown
-            count += 1
-            if groups_start <= count < groups_stop:
-                groups_visible = True
-            else:
-                groups_visible = False
-
-        fbo.delete()
+        # Stop runstate
+        runstate.stop()
  
 class CkgRunState:
     """Contains information about the state of a checkergen project
@@ -623,6 +610,7 @@ class CkgRunState:
             raise ValueError(msg)
 
         self._count = 0
+        self.terminate = False
 
         # Flag used by freqcheck
         self.fc_send = False
@@ -637,6 +625,19 @@ class CkgRunState:
             self.test_rect = graphics.Rect((0, self.res[1]), 
                                            [r/8 for r in self.res],
                                            anchor='topleft')
+
+        # Initialize export
+        if self.disp_ops['export']:
+            if not os.path.isdir(self.disp_ops['expo_dir']):
+                msg = 'export path is not a directory'
+                raise IOError(msg)
+            if self.disp_ops['folder']:
+                self.save_dir = os.path.join(self.disp_ops['expo_dir'],
+                                             self.name + EXPORT_DIR_SUFFIX)
+            else:
+                self.save_dir = self.disp_ops['expo_dir']
+            if not os.path.isdir(self.save_dir):
+                os.mkdir(self.save_dir)
 
         # Initialize ports
         if self.disp_ops['trigser']:
@@ -665,28 +666,32 @@ class CkgRunState:
             eyetracking.select_source(self.disp_ops['etuser'],
                                       self.disp_ops['etvideo'])
             eyetracking.start()
-        
-        # Stretch to fit screen only if project res does not equal screen res
+
+        # Create window if not exporting
         self.scaling = False
-        if self.disp_ops['fullscreen']:
-            self.window = pyglet.window.Window(fullscreen=True, visible=False)
-            if (self.window.width, self.window.height) != self.res:
-                self.scaling = True
-        else:
-            self.window = pyglet.window.Window(*self.res, visible=False)
+        if not self.disp_ops['export']:
+            # Stretch to fit screen only if project res does not
+            # equal screen res
+            if self.disp_ops['fullscreen']:
+                self.window = pyglet.window.Window(fullscreen=True,
+                                                   visible=False)
+                if (self.window.width, self.window.height) != self.res:
+                    self.scaling = True
+            else:
+                self.window = pyglet.window.Window(*self.res, visible=False)
 
-        # Set up KeyStateHandler to handle keyboard input
-        self.keystates = pyglet.window.key.KeyStateHandler()
-        self.window.push_handlers(self.keystates)
+            # Set up KeyStateHandler to handle keyboard input
+            self.keystates = pyglet.window.key.KeyStateHandler()
+            self.window.push_handlers(self.keystates)
 
-        # Clear window and make visible
-        self.window.switch_to()
-        graphics.set_clear_color(self.bg)
-        self.window.clear()
-        self.window.set_visible()
+            # Clear window and make visible
+            self.window.switch_to()
+            graphics.set_clear_color(self.bg)
+            self.window.clear()
+            self.window.set_visible()
 
-        # Create framebuffer object for drawing unscaled scene
-        if self.scaling:
+        # Create framebuffer object for drawing unscaled or exported scene
+        if self.scaling or self.disp_ops['export']:
             self.canvas = pyglet.image.Texture.create(*self.res)
             self.fbo = graphics.Framebuffer(self.canvas)
             self.fbo.start_render()
@@ -753,15 +758,23 @@ class CkgRunState:
             else:
                 self.fix_crosses[1].draw()                
                 
-        # Blit canvas to screen if necessary
-        if self.scaling:
-            self.fbo.end_render()
-            self.canvas.blit(0, 0)
-        self.window.switch_to()
-        self.window.dispatch_events()
-        self.window.flip()
-        # Make sure everything has been drawn
-        pyglet.gl.glFinish()
+        if self.disp_ops['export']:
+            # Save current frame to file
+            savepath = os.path.join(
+                self.save_dir, '{0}{2}.{1}'.\
+                    format(self.name, 'png',
+                           repr(self._count).zfill(numdigits(self.frames-1))))
+            self.canvas.save(savepath)
+        else:
+            # Blit canvas to screen if necessary
+            if self.scaling:
+                self.fbo.end_render()
+                self.canvas.blit(0, 0)
+            self.window.switch_to()
+            self.window.dispatch_events()
+            self.window.flip()
+            # Make sure everything has been drawn
+            pyglet.gl.glFinish()
 
         # Append time information to lists
         if self.disp_ops['logtime']:
@@ -787,23 +800,34 @@ class CkgRunState:
             self.trigstamps.append('')
 
         # Clear canvas, events, prepare for next frame
-        if self.scaling:
-            self.fbo.start_render()
+        if self.disp_ops['export']:
             self.fbo.clear()
         else:
-            self.window.clear()
+            if self.scaling:
+                self.fbo.start_render()
+                self.fbo.clear()
+            else:
+                self.window.clear()
+            if self.window.has_exit:
+                self.terminate = True
         self.events = copy.deepcopy(self.__class__.DEFAULTS['events'])
 
         self._count += 1
+        
+        # Terminate export if the time has come
+        if self.disp_ops['export']:
+            if self._count >= self.frames:
+                self.terminate = True
 
     def stop(self):
         """Clean up RunState."""
         if self.disp_ops['eyetrack']:
             eyetracking.stop()
-        if self.scaling:
+        if self.scaling or self.disp_ops['export']:
             self.fbo.delete()
             del self.canvas
-        self.window.close()
+        if not self.disp_ops['export']:
+            self.window.close()
         if self.disp_ops['trigser'] or self.disp_ops['trigpar']:
             trigger.quit(self.disp_ops['trigser'], self.disp_ops['trigpar'])
         if self.disp_ops['priority'] != None:
@@ -939,7 +963,7 @@ class CkgDisplayGroup:
         """Display the group in the context described by supplied runstate."""
         self.reset()
         for count in range(self.pre * runstate.fps):
-            if runstate.window.has_exit:
+            if runstate.terminate:
                 break
             runstate.update()
         runstate.events['grp_on'] = True
@@ -947,7 +971,7 @@ class CkgDisplayGroup:
             runstate.fix_fail = False
             runstate.true_fail = False
         for count in range(self.disp * runstate.fps):
-            if runstate.window.has_exit:
+            if runstate.terminate:
                 break
             self.draw(runstate)
             self.update(runstate)
@@ -957,7 +981,7 @@ class CkgDisplayGroup:
             if runstate.fix_fail:
                 runstate.true_fail = True
         for count in range(self.post * runstate.fps):
-            if runstate.window.has_exit:
+            if runstate.terminate:
                 break
             runstate.update()
 
@@ -1053,7 +1077,7 @@ class CkgWaitScreen(CkgDisplayGroup):
     def display(self, runstate):
         """Displays waitscreen in context described by supplied runstate."""
         while self.steps_done < self.num_steps:
-            if runstate.window.has_exit:
+            if runstate.terminate:
                 break
             self.draw(runstate)
             self.update(runstate)

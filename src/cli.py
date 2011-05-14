@@ -992,7 +992,7 @@ class CkgCmd(cmd.Cmd):
                                dest='folder', action='store_false',
                                help='''force images not to exported in 
                                        a containing folder''')
-    export_parser.add_argument('-r', '--repeat', metavar='N', type=int,
+    export_parser.add_argument('-r', '--repeats', metavar='N', type=int,
                                 help='''repeatedly export specified display
                                         groups N number of times''')
     export_parser.add_argument('duration', nargs='?',
@@ -1003,10 +1003,11 @@ class CkgCmd(cmd.Cmd):
     export_parser.add_argument('dir', nargs='?', default=os.getcwd(),
                                help='''destination directory for export
                                        (default: current working directory)''')
-    export_parser.add_argument('idlist', nargs='*', metavar='id', type=int,
-                               help='''list of display groups to be exported
-                                       in the specified order (default: order
-                                       by id, i.e. group 0 is first)''')
+    export_parser.add_argument('order', nargs='*', metavar='id', type=int,
+                               help='''order in which groups should be
+                                       displayed (default: random order
+                                       from list of orders if specified
+                                       in project, ascending otherwise)''')
 
     def help_export(self):
         self.__class__.export_parser.print_help()
@@ -1024,21 +1025,17 @@ class CkgCmd(cmd.Cmd):
             self.__class__.export_parser.print_usage()
             return        
 
-        if len(args.idlist) > 0:
-            for i in set(args.idlist):
-                if i >= len(self.cur_proj.groups) or i < 0:
+        if len(args.order) > 0:
+            for i in set(args.order):
+                if i >= len(self.cur_proj.groups) or i < -1:
                     print 'error: group', i, 'does not exist'
                     return
-            groupq = [self.cur_proj.groups[i] for i in args.idlist]
-        else:
-            groupq = list(self.cur_proj.groups)
-        if args.repeat != None:
-            groupq = list(groupq * args.repeat)
 
         try:
-            self.cur_proj.export(export_dir=args.dir,
-                                 export_duration=args.duration,
-                                 groupq=groupq,
+            self.cur_proj.export(repeats=args.repeats,
+                                 order=args.order,
+                                 expo_dir=args.dir,
+                                 expo_dur=args.duration,
                                  folder=args.folder)
         except IOError:
             print "error:", str(sys.exc_value)
@@ -1049,9 +1046,10 @@ class CkgCmd(cmd.Cmd):
             while True:
                 try:
                     if self.__class__.yn_parse(raw_input()):
-                        self.cur_proj.export(export_dir=args.dir,
-                                             export_duration=args.duration,
-                                             groupq=groupq,
+                        self.cur_proj.export(repeats=args.repeats,
+                                             order=args.order,
+                                             expo_dir=args.dir,
+                                             expo_dur=args.duration,
                                              folder=args.folder,
                                              force=True)
                         break

@@ -27,6 +27,10 @@
         <tryagain>0</tryagain>
         <trybreak>None</trybreak>
         <nolog>False</nolog>
+        <export>False</export>
+        <expo_dir>None</expo_dir>
+        <expo_dur>None</expo_dur>
+        <folder>True</folder>
     </disp_ops>
     <group>
         <pre>Decimal('2')</pre>
