@@ -610,6 +610,7 @@ class CkgRunState:
             raise ValueError(msg)
 
         self._count = 0
+        self._old_code = 0
         self.terminate = False
 
         # Flag used by freqcheck
@@ -788,10 +789,11 @@ class CkgRunState:
 
         # Send trigger ASAP after flip
         if self.disp_ops['trigser'] or self.disp_ops['trigpar']:
-            if self.encode_events() > 0:
+            if self.encode_events() != self._old_code:
                 trigger.send(self.disp_ops['trigser'],
                              self.disp_ops['trigpar'],
                              self.encode_events())
+            self._old_code = self.encode_events
 
         # Log when triggers are sent
         if self.disp_ops['logtime'] and self.encode_events() > 0:
