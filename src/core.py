@@ -418,10 +418,9 @@ class CkgProj:
                                disp_ops=disp_ops, order=order)
         runstate.start()
         waitscreen = CkgWaitScreen()
-        # Set order id to be sent if necessary
+        # Set runstate order id if necessary
         if order in self.orders:
-            runstate.events['ord_id'] = self.orders.index(order)
-
+            runstate.ord_id = self.orders.index(order)
         # Count through pre
         for count in range(self.pre * self.fps):
             if runstate.terminate:
@@ -451,14 +450,16 @@ class CkgProj:
                     waitscreen.display(runstate)
                 else:
                     self.groups[gid].display(runstate)
-                # Append group id and fail state
-                runstate.gids.append(gid)
-                if runstate.disp_ops['eyetrack']:
-                    runstate.fails.append(runstate.true_fail)
-                # Append groups to be added
-                if runstate.disp_ops['eyetrack'] and runstate.true_fail:
-                    if len(runstate.add_gids) < runstate.disp_ops['tryagain']:
-                        runstate.add_gids.append(gid)
+                if not runstate.terminate:
+                    # Append group id and fail state
+                    runstate.gids.append(gid)
+                    if runstate.disp_ops['eyetrack']:
+                        runstate.fails.append(runstate.true_fail)
+                    # Append groups to be added
+                    if runstate.disp_ops['eyetrack'] and runstate.true_fail:
+                        if (len(runstate.add_gids) <
+                            runstate.disp_ops['tryagain']):
+                            runstate.add_gids.append(gid)
             runstate.events['blk_off'] = True
         # Stop freqcheck before added groups
         if runstate.disp_ops['freqcheck']:
@@ -476,10 +477,11 @@ class CkgProj:
                 for gid in blk:
                     if gid != None:
                         self.groups[gid].display(runstate)
-                        # Append group id and fail state
-                        runstate.gids.append(gid)
-                        if runstate.disp_ops['eyetrack']:
-                            runstate.fails.append(runstate.true_fail)
+                        if not runstate.terminate:
+                            # Append group id and fail state
+                            runstate.gids.append(gid)
+                            if runstate.disp_ops['eyetrack']:
+                                runstate.fails.append(runstate.true_fail)
                 runstate.events['blk_off'] = True            
         # Count through post
         for count in range(self.post * self.fps):
@@ -618,6 +620,7 @@ class CkgRunState:
 
         self._count = 0
         self._old_code = 0
+        self.ord_id = None
         self.terminate = False
 
         # Flag used by freqcheck
@@ -1082,6 +1085,8 @@ class CkgWaitScreen(CkgDisplayGroup):
         if max([runstate.keystates[key] for 
                 key in self.cont_keys[self.steps_done]]):
             self.steps_done += 1
+            if self.steps_done == 1:
+                runstate.events['ord_id'] = runstate.ord_id
 
     def display(self, runstate):
         """Displays waitscreen in context described by supplied runstate."""
