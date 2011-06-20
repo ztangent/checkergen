@@ -451,12 +451,14 @@ class CkgProj:
                     waitscreen.display(runstate)
                 else:
                     self.groups[gid].display(runstate)
-                # Append failed groups
+                # Append group id and fail state
+                runstate.gids.append(gid)
+                if runstate.disp_ops['eyetrack']:
+                    runstate.fails.append(runstate.true_fail)
+                # Append groups to be added
                 if runstate.disp_ops['eyetrack'] and runstate.true_fail:
                     if len(runstate.add_gids) < runstate.disp_ops['tryagain']:
                         runstate.add_gids.append(gid)
-                    else:
-                        runstate.fail_gids.append(gid)
             runstate.events['blk_off'] = True
         # Stop freqcheck before added groups
         if runstate.disp_ops['freqcheck']:
@@ -474,6 +476,10 @@ class CkgProj:
                 for gid in blk:
                     if gid != None:
                         self.groups[gid].display(runstate)
+                        # Append group id and fail state
+                        runstate.gids.append(gid)
+                        if runstate.disp_ops['eyetrack']:
+                            runstate.fails.append(runstate.true_fail)
                 runstate.events['blk_off'] = True            
         # Count through post
         for count in range(self.post * self.fps):
@@ -572,8 +578,9 @@ class CkgRunState:
                      ('order', []),
                      ('disp_ops', None),
                      ('events', None),
+                     ('gids', []),
+                     ('fails', []),
                      ('add_gids', []),
-                     ('fail_gids', []),
                      ('timestamps', []),
                      ('durstamps', []),
                      ('trigstamps', [])])
@@ -701,15 +708,12 @@ class CkgRunState:
 
         # Set process priority
         if self.disp_ops['priority'] != None:
-            if not priority.available[sys.platform]:
-                msg = "setting priority not available on {0}".\
-                    format(sys.platform)
-                raise NotImplementedError(msg)
-            else:
-                try:
-                    priority.set(self.disp_ops['priority'])
-                except ValueError:
-                    priority.set(int(self.disp_ops['priority']))
+            try:
+                priority.set(self.disp_ops['priority'])
+            except ValueError:
+                priority.set(int(self.disp_ops['priority']))
+            except:
+                pass
 
         # Start timers
         if self.disp_ops['logtime']:
@@ -832,8 +836,10 @@ class CkgRunState:
             self.window.close()
         if self.disp_ops['trigser'] or self.disp_ops['trigpar']:
             trigger.quit(self.disp_ops['trigser'], self.disp_ops['trigpar'])
-        if self.disp_ops['priority'] != None:
+        try:
             priority.set('normal')
+        except:
+            pass
 
     def encode_events(self):
         """Hard code specific trigger values for events."""
@@ -886,13 +892,14 @@ class CkgRunState:
             writer.writerow(self.disp_ops.keys())
             writer.writerow(self.disp_ops.values())
             writer.writerow(['order:'] + self.order)
+            writer.writerow(['groups', 'failure'])
+            if not self.disp_ops['eyetrack']:
+                self.fails = ['NA'] * len(self.gids)
+            for i in zip(self.gids, self.fails):
+                writer.writerow(list(i))
             if self.disp_ops['eyetrack']:
                 writer.writerow(['groups added'])
                 for blk in grouper(self.add_gids,
-                                   self.disp_ops['trybreak'], ''):
-                    writer.writerow(blk)
-                writer.writerow(['groups failed'])
-                for blk in grouper(self.fail_gids,
                                    self.disp_ops['trybreak'], ''):
                     writer.writerow(blk)
             if self.disp_ops['logtime'] or self.disp_ops['logdur']:

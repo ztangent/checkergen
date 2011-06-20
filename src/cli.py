@@ -976,11 +976,10 @@ class CkgCmd(cmd.Cmd):
                     eyetracking.EyetrackingError):
                 print ''
                 print "error:", str(sys.exc_value)
-                if args.priority != None:
-                    try:
-                        priority.set('normal')
-                    except:
-                        pass
+                try:
+                    priority.set('normal')
+                except:
+                    pass
                 return
             print "done"
 
