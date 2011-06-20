@@ -819,7 +819,11 @@ class CkgRunState:
                 self.window.clear()
             if self.window.has_exit:
                 self.terminate = True
+        # Send ord_id immediately after blk_on
+        send_ord_id_next = self.events['blk_on']
         self.events = copy.deepcopy(self.__class__.DEFAULTS['events'])
+        if send_ord_id_next:
+            self.events['ord_id'] = self.ord_id
 
         self._count += 1
         
@@ -1085,8 +1089,6 @@ class CkgWaitScreen(CkgDisplayGroup):
         if max([runstate.keystates[key] for 
                 key in self.cont_keys[self.steps_done]]):
             self.steps_done += 1
-            if self.steps_done == 1:
-                runstate.events['ord_id'] = runstate.ord_id
 
     def display(self, runstate):
         """Displays waitscreen in context described by supplied runstate."""
