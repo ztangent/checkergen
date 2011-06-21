@@ -122,13 +122,11 @@ if available:
 
     def start():
         """Start tracking the eye."""
-        global lastgoodstamp
         if not is_source_ready():
             select_source()
         if not is_calibrated():
             msg = 'subject not yet calibrated'
             raise EyetrackingError(msg)
-        lastgoodstamp = 0
         VET.ClearDataBuffer()
         VET.StartTracking()
 

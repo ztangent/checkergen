@@ -6,7 +6,7 @@ FrameOverflowError
 
 Classes:
 CkgProj -- A checkergen project, contains settings and CkgDisplayGroups.
-CkgDisplayGroup -- A set of CheckerShapes to be displayed simultaneously.
+CkgDisplayGroup -- A set of CheckerShapes to be displayed siet_stateaneously.
 CheckerShapes -- Abstract checkered shape class
 CheckerBoard -- A (distorted) checkerboard pattern, can color-flip.
 
@@ -430,6 +430,10 @@ class CkgProj:
         repeats = runstate.disp_ops['repeats']
         ord_len = len(runstate.order)
         for i in range(repeats):
+            # Restart eyetracking
+            if runstate.disp_ops['eyetrack']:
+                eyetracking.stop()
+                eyetracking.start()
             # Show waitscreen
             if not runstate.disp_ops['waitless']:
                 waitscreen.reset()
@@ -455,11 +459,11 @@ class CkgProj:
                     runstate.gids.append(gid)
                     if runstate.disp_ops['eyetrack']:
                         runstate.fails.append(runstate.true_fail)
-                    # Append groups to be added
-                    if runstate.disp_ops['eyetrack'] and runstate.true_fail:
-                        if (len(runstate.add_gids) <
-                            runstate.disp_ops['tryagain']):
-                            runstate.add_gids.append(gid)
+                        # Append groups to be added
+                        if runstate.true_fail:
+                            if (len(runstate.add_gids) <
+                                runstate.disp_ops['tryagain']):
+                                    runstate.add_gids.append(gid)
             runstate.events['blk_off'] = True
         # Stop freqcheck before added groups
         if runstate.disp_ops['freqcheck']:
@@ -468,6 +472,10 @@ class CkgProj:
         if runstate.disp_ops['eyetrack']:
             for blk in grouper(runstate.add_gids,
                                runstate.disp_ops['trybreak']):
+                # Restart eyetracking
+                if runstate.disp_ops['eyetrack']:
+                    eyetracking.stop()
+                    eyetracking.start()
                 # Show waitscreen
                 if not runstate.disp_ops['waitless']:                
                     waitscreen.reset()
@@ -858,27 +866,27 @@ class CkgRunState:
         elif self.events['blk_off']:
             code = 127
         else:
-            mult = 0
+            et_state = 0
             if self.events['fix_on']:
-                mult = 4
+                et_state = 4
             elif self.events['track_on']:
-                mult = 3
+                et_state = 2
             if self.events['track_off']:
-                mult = 1
+                et_state = 1
             elif self.events['fix_off']:
-                mult = 2
+                et_state = 2
             if self.events['grp_on']:
-                code = 100 + mult
+                code = 100 + et_state
             elif self.events['grp_off']:
-                code = 90 + mult
+                code = 90 + et_state
+            elif et_state > 0:
+                code = 110 + et_state
             elif len(self.events['sids']) > 0:
                 code = ((0 in self.events['sids'])*2**0 +
                         (1 in self.events['sids'])*2**1 +
                         (2 in self.events['sids'])*2**2 +
-                        (3 in self.events['sids'])*2**3)
-                code = mult*16 + code
-            elif mult > 0:
-                code = 110 + mult
+                        (3 in self.events['sids'])*2**3 +
+                        16)
         return code
 
     def log(self, path=None):
