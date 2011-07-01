@@ -240,8 +240,9 @@ class CkgCmd(cmd.Cmd):
                             type=to_decimal, metavar='SECONDS',
                             help='''time in seconds a blank screen will
                                     be shown after all display groups''')
-    set_parser.add_argument('-cc', '--cross_cols', metavar='COLOR1,COLOR2',
-                            action=store_list(2, ',', to_color, [';']),
+    set_parser.add_argument('-cc', '--cross_cols',
+                            metavar='COLOR1,COLOR2,COLOR3',
+                            action=store_list(3, ',', to_color, [';']),
                             help='''fixation cross coloration
                                     (color format: R;G;B, 
                                     component range from 0-255)''')
