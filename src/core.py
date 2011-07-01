@@ -87,7 +87,9 @@ class CkgProj:
                             ('bg',  (127, 127, 127)),
                             ('pre',  0),
                             ('post',  0),
-                            ('cross_cols',  ((0, 0, 0), (255, 0, 0))),
+                            ('cross_cols',  ((0, 0, 0),
+                                             (255, 0, 0),
+                                             (0, 0, 255))),
                             ('cross_times',  ('Infinity', 1)),
                             ('orders', []),
                             ('disp_ops', None)])
@@ -163,7 +165,7 @@ class CkgProj:
                 raise ValueError
             value = tuple([int(v) for v in value])
         elif name == 'cross_cols':
-            if len(value) != 2:
+            if len(value) != 3:
                 raise ValueError
             for col in value:
                 if len(col) != 3:
@@ -747,9 +749,12 @@ class CkgRunState:
             if self.fixated:
                 # Draw normal cross color if fixating
                 self.fix_crosses[0].draw()
-            else:
-                # Draw alternative cross color if not fixating
+            elif self.tracked:
+                # Draw 2nd cross color if tracked, not fixating
                 self.fix_crosses[1].draw()
+            else:
+                # Draw 3rd cross color if untracked
+                self.fix_crosses[2].draw()
 
             # Update eyetracking events
             if self.tracked != self.old_tracked:
