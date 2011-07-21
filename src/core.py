@@ -613,7 +613,9 @@ class CkgRunState:
                      ('add_gids', []),
                      ('timestamps', []),
                      ('durstamps', []),
-                     ('trigstamps', [])])
+                     ('trigstamps', []),
+                     ('eye_x', []),
+                     ('eye_y', [])])
 
     DEFAULTS['events'] = dict([('ord_id', None),
                                ('blk_on', False),
@@ -791,6 +793,7 @@ class CkgRunState:
             # Check for failure of trial
             if self.tracked and not self.fixated:
                 self.fix_fail = True
+
         else:
             # Change cross color based on time
             if self.show_cross:
@@ -836,11 +839,18 @@ class CkgRunState:
                              self.encode_events())
             self._old_code = self.encode_events
 
-        # Log when triggers are sent
-        if self.disp_ops['logtime'] and self.encode_events() > 0:
-            self.trigstamps.append(self.encode_events())
-        else:
-            self.trigstamps.append('')
+        # Log eye positions and when triggers are sent
+        if self.disp_ops['logtime']:
+            if self.disp_ops['eyetrack']:
+                self.eye_x.append(eyetracking.x_pos())
+                self.eye_y.append(eyetracking.y_pos())
+            else:
+                self.eye_x.append('')
+                self.eye_y.append('')
+            if self.encode_events() > 0:
+                self.trigstamps.append(self.encode_events())
+            else:
+                self.trigstamps.append('')
 
         # Clear canvas, events, prepare for next frame
         if self.disp_ops['export']:
@@ -944,8 +954,10 @@ class CkgRunState:
                                    self.disp_ops['trybreak'], ''):
                     writer.writerow(blk)
             if self.disp_ops['logtime'] or self.disp_ops['logdur']:
-                stamps = [self.timestamps, self.durstamps, self.trigstamps]
-                writer.writerow(['timestamps', 'durations', 'triggers'])
+                stamps = [self.timestamps, self.durstamps, self.trigstamps,
+                          self.eye_x, self.eye_y]
+                writer.writerow(['timestamps', 'durations', 'triggers',
+                                 'eye x (mm)', 'eye y (mm)'])
                 for stamp in zip(*stamps):
                     writer.writerow(list(stamp))
 
@@ -1035,6 +1047,7 @@ class CkgDisplayGroup:
                 runstate.show_cross = dict(self.pre_cross)[pre_time]
             runstate.update()
         runstate.events['grp_on'] = True
+        runstate.show_cross = True
         if runstate.disp_ops['eyetrack']:
             runstate.fix_fail = False
             runstate.true_fail = False
@@ -1147,6 +1160,7 @@ class CkgWaitScreen(CkgDisplayGroup):
 
     def display(self, runstate):
         """Displays waitscreen in context described by supplied runstate."""
+        runstate.show_cross = True
         while self.steps_done < self.num_steps:
             if runstate.terminate:
                 break

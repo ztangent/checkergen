@@ -191,3 +191,17 @@ if available:
             fixcount = 0
             lastfixstatus = curfixstatus
         return lastfixstatus
+
+    def x_pos():
+        data = VET.GetLatestEyePosition(DummyResultSet)[1]
+        if data.Tracked:
+            return float(data.ScreenPositionXmm)
+        else:
+            return "untracked"
+        
+    def y_pos():
+        data = VET.GetLatestEyePosition(DummyResultSet)[1]
+        if data.Tracked:
+            return float(data.ScreenPositionYmm)
+        else:
+            return "untracked"
