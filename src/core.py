@@ -141,12 +141,12 @@ class CkgProj:
         post --time in seconds a blank screen will be shown after any
         display groups
 
-        pre_cross -- dictionary specifying at what times during the pre
-        period a cross should be shown (e.g. {to_decimal(0): False,
-        to_decimal(2): True} means that a cross is not shown at the start,
-        but is shown from 2 seconds onwards)
+        pre_cross -- key-value pairs specifying at what times during the pre
+        period a cross should be shown (e.g. [(0, False), (2, True)]
+        means that a cross is not shown at the start, but is shown
+        from 2 seconds onwards)
 
-        post_cross -- dictionary specifying at what times during the post
+        post_cross -- key-value pairs specifying at what times during the post
         period a cross should be shown
 
         """
@@ -186,7 +186,7 @@ class CkgProj:
                 raise ValueError
             value = tuple([to_decimal(x) for x in value])
         elif name in ['pre_cross', 'post_cross']:
-            value = [(to_decimal(k), v) for (k, v) in value]
+            value = [(to_decimal(k), to_bool(v)) for (k, v) in value]
 
         # Store value
         self.__dict__[name] = value
@@ -970,9 +970,9 @@ class CkgDisplayGroup:
         shapes in group are displayed
 
         pre_cross -- key-value pairs specifying at what times during the pre
-        period a cross should be shown (e.g. {to_decimal(0): False,
-        to_decimal(2): True} means that a cross is not shown at the start,
-        but is shown from 2 seconds onwards)
+        period a cross should be shown (e.g. [(0, False), (2, True)]
+        means that a cross is not shown at the start, but is shown
+        from 2 seconds onwards)
 
         post_cross -- key-value pairs specifying at what times during the post
         period a cross should be shown
@@ -990,7 +990,7 @@ class CkgDisplayGroup:
         if name in ['pre', 'disp', 'post']:
             value = to_decimal(value)
         elif name in ['pre_cross', 'post_cross']:
-            value = [(to_decimal(k), v) for (k, v) in value]
+            value = [(to_decimal(k), to_bool(v)) for (k, v) in value]
 
         self.__dict__[name] = value
 

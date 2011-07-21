@@ -22,6 +22,18 @@ def public_dir(obj):
             names.remove(name)
     return names
 
+def to_bool(s,
+            y_words=['t','y','1','True','true','yes','Yes'],
+            n_words=['f','n','0','False','false','no','No']):
+    """Converts certain strings to True or False."""
+    if str(s) in y_words:
+        return True
+    elif str(s) in n_words:
+        return False
+    else:
+        msg = 'Invalid true/false keyword'
+        raise ValueError(msg)
+
 def to_decimal(s):
     """ValueError raising Decimal converter."""
     try:

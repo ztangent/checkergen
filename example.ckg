@@ -5,6 +5,8 @@
     <bg>(127, 127, 127)</bg>
     <pre>Decimal('0')</pre>
     <post>Decimal('0')</post>
+    <pre_cross>[(Decimal('0'), True)]</pre_cross>
+    <post_cross>[(Decimal('0'), True)]</post_cross>
     <cross_cols>((0, 0, 0), (255, 0, 0), (0, 0, 255))</cross_cols>
     <cross_times>(Decimal('Infinity'), Decimal('1'))</cross_times>
     <orders>[]</orders>
@@ -36,6 +38,8 @@
         <pre>Decimal('2')</pre>
         <disp>Decimal('10')</disp>
         <post>Decimal('2')</post>
+        <pre_cross>[(Decimal('0'), True)]</pre_cross>
+        <post_cross>[(Decimal('0'), True)]</post_cross>
         <shape type="board">
             <dims>(5, 5)</dims>
             <init_unit>(Decimal('40'), Decimal('40'))</init_unit>
