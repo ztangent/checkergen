@@ -5,7 +5,7 @@
     <bg>(127, 127, 127)</bg>
     <pre>Decimal('0')</pre>
     <post>Decimal('0')</post>
-    <cross_cols>((0, 0, 0), (255, 0, 0))</cross_cols>
+    <cross_cols>((0, 0, 0), (255, 0, 0), (0, 0, 255))</cross_cols>
     <cross_times>(Decimal('Infinity'), Decimal('1'))</cross_times>
     <orders>[]</orders>
     <disp_ops>

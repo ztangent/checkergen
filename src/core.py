@@ -87,6 +87,8 @@ class CkgProj:
                             ('bg',  (127, 127, 127)),
                             ('pre',  0),
                             ('post',  0),
+                            ('pre_cross', [(0, True)]),
+                            ('post_cross', [(0, True)]),
                             ('cross_cols',  ((0, 0, 0),
                                              (255, 0, 0),
                                              (0, 0, 255))),
@@ -139,6 +141,14 @@ class CkgProj:
         post --time in seconds a blank screen will be shown after any
         display groups
 
+        pre_cross -- dictionary specifying at what times during the pre
+        period a cross should be shown (e.g. {to_decimal(0): False,
+        to_decimal(2): True} means that a cross is not shown at the start,
+        but is shown from 2 seconds onwards)
+
+        post_cross -- dictionary specifying at what times during the post
+        period a cross should be shown
+
         """
         if 'path' in keywords.keys():
             self.load(keywords['path'])
@@ -175,6 +185,8 @@ class CkgProj:
             if len(value) != 2:
                 raise ValueError
             value = tuple([to_decimal(x) for x in value])
+        elif name in ['pre_cross', 'post_cross']:
+            value = [(to_decimal(k), v) for (k, v) in value]
 
         # Store value
         self.__dict__[name] = value
@@ -427,6 +439,9 @@ class CkgProj:
         for count in range(self.pre * self.fps):
             if runstate.terminate:
                 break
+            pre_time = to_decimal(count) / runstate.fps
+            if pre_time in dict(self.pre_cross):
+                runstate.show_cross = dict(self.pre_cross)[pre_time]
             runstate.update()
         # Loop through repeats
         repeats = runstate.disp_ops['repeats']
@@ -497,6 +512,9 @@ class CkgProj:
         for count in range(self.post * self.fps):
             if runstate.terminate:
                 break
+            post_time = to_decimal(count) / runstate.fps
+            if post_time in dict(self.post_cross):
+                runstate.show_cross = dict(self.post_cross)[post_time]
             runstate.update()
 
         # Stop and output log
@@ -637,6 +655,7 @@ class CkgRunState:
         self.fc_send = False
 
         # Create fixation crosses
+        self.show_cross = True
         self.fix_crosses = [graphics.Cross([r/2 for r in self.res],
                                            (20, 20), col = cross_col) 
                             for cross_col in self.cross_cols]
@@ -746,15 +765,16 @@ class CkgRunState:
             self.old_fixated = self.fixated
             self.fixated = eyetracking.is_fixated(self.fps)
 
-            if self.fixated:
-                # Draw normal cross color if fixating
-                self.fix_crosses[0].draw()
-            elif self.tracked:
-                # Draw 2nd cross color if tracked, not fixating
-                self.fix_crosses[1].draw()
-            else:
-                # Draw 3rd cross color if untracked
-                self.fix_crosses[2].draw()
+            if self.show_cross:
+                if self.fixated:
+                    # Draw normal cross color if fixating
+                    self.fix_crosses[0].draw()
+                elif self.tracked:
+                    # Draw 2nd cross color if tracked, not fixating
+                    self.fix_crosses[1].draw()
+                else:
+                    # Draw 3rd cross color if untracked
+                    self.fix_crosses[2].draw()
 
             # Update eyetracking events
             if self.tracked != self.old_tracked:
@@ -773,11 +793,12 @@ class CkgRunState:
                 self.fix_fail = True
         else:
             # Change cross color based on time
-            if (self._count % (sum(self.cross_times) * self.fps) 
-                < self.cross_times[0] * self.fps):
-                self.fix_crosses[0].draw()
-            else:
-                self.fix_crosses[1].draw()                
+            if self.show_cross:
+                if (self._count % (sum(self.cross_times) * self.fps) 
+                    < self.cross_times[0] * self.fps):
+                    self.fix_crosses[0].draw()
+                else:
+                    self.fix_crosses[1].draw()                
                 
         if self.disp_ops['export']:
             # Save current frame to file
@@ -930,7 +951,11 @@ class CkgRunState:
 
 class CkgDisplayGroup:
 
-    DEFAULTS = OrderedDict([('pre',  0), ('disp',  'Infinity'), ('post',  0)])
+    DEFAULTS = OrderedDict([('pre',  0),
+                            ('disp',  'Infinity'),
+                            ('post',  0),
+                            ('pre_cross', [(0, True)]),
+                            ('post_cross', [(0, True)])])
 
     def __init__(self, **keywords):
         """Create a new group of shapes to be displayed together.
@@ -944,6 +969,14 @@ class CkgDisplayGroup:
         post -- time in seconds a blank screen is shown after
         shapes in group are displayed
 
+        pre_cross -- key-value pairs specifying at what times during the pre
+        period a cross should be shown (e.g. {to_decimal(0): False,
+        to_decimal(2): True} means that a cross is not shown at the start,
+        but is shown from 2 seconds onwards)
+
+        post_cross -- key-value pairs specifying at what times during the post
+        period a cross should be shown
+        
         """
         for kw in self.__class__.DEFAULTS.keys():
             if kw in keywords.keys():
@@ -954,8 +987,11 @@ class CkgDisplayGroup:
         self.reset()
 
     def __setattr__(self, name, value):
-        if name in self.__class__.DEFAULTS:
+        if name in ['pre', 'disp', 'post']:
             value = to_decimal(value)
+        elif name in ['pre_cross', 'post_cross']:
+            value = [(to_decimal(k), v) for (k, v) in value]
+
         self.__dict__[name] = value
 
     def duration(self):
@@ -994,6 +1030,9 @@ class CkgDisplayGroup:
         for count in range(self.pre * runstate.fps):
             if runstate.terminate:
                 break
+            pre_time = to_decimal(count) / runstate.fps
+            if pre_time in dict(self.pre_cross):
+                runstate.show_cross = dict(self.pre_cross)[pre_time]
             runstate.update()
         runstate.events['grp_on'] = True
         if runstate.disp_ops['eyetrack']:
@@ -1012,6 +1051,9 @@ class CkgDisplayGroup:
         for count in range(self.post * runstate.fps):
             if runstate.terminate:
                 break
+            post_time = to_decimal(count) / runstate.fps
+            if post_time in dict(self.post_cross):
+                runstate.show_cross = dict(self.post_cross)[post_time]
             runstate.update()
 
     def save(self, document, parent):
