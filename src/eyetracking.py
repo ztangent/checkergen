@@ -42,7 +42,9 @@ if available:
     # For easier access to constants and standardization with MATLAB interface
     CRS = win32com.client.constants
     
-    lastfixstatus = False
+    data = None
+    lastfixstatus = 0
+    newfixstatus = 0
     fixcount = 0
     lasttrackstatus = False
     trackcount = 0
@@ -134,6 +136,11 @@ if available:
         """Stop tracking the eye."""
         VET.StopTracking()
 
+    def poll_tracker():
+        """Poll tracker for tracking information."""
+        global data
+        data = VET.GetLatestEyePosition(DummyResultSet)[1]        
+
     def is_tracked(fps, track_period=TRACK_PER):
         """Returns true if the eye is being tracked.
 
@@ -146,7 +153,6 @@ if available:
         """
         global lasttrackstatus
         global trackcount
-        data = VET.GetLatestEyePosition(DummyResultSet)[1]
         if data.Tracked != lasttrackstatus:
             trackcount += 1
         else:
@@ -175,33 +181,35 @@ if available:
 
         """
         global lastfixstatus
+        global newfixstatus
         global fixcount
-        data = VET.GetLatestEyePosition(DummyResultSet)[1]
         pos = (data.ScreenPositionXmm, data.ScreenPositionYmm)
         diff = [abs(p - fp) for p, fp in zip(pos, fix_pos)]
-        curfixstatus = False
+        curfixstatus = -1
         if data.Tracked == True:
             if diff[0] < fix_range[0] and diff[1] < fix_range[1]:
-                curfixstatus = True
-        if curfixstatus != lastfixstatus:
+                curfixstatus = 1
+            else:
+                curfixstatus = 0
+        if curfixstatus == newfixstatus:
             fixcount += 1
         else:
             fixcount = 0
+        if curfixstatus != lastfixstatus:
+            newfixstatus = curfixstatus
         if fixcount >= fix_period / to_decimal(1000) * fps:
             fixcount = 0
-            lastfixstatus = curfixstatus
-        return lastfixstatus
+            lastfixstatus = newfixstatus
+        return (lastfixstatus == 1)
 
     def x_pos():
-        data = VET.GetLatestEyePosition(DummyResultSet)[1]
         if data.Tracked:
             return float(data.ScreenPositionXmm)
         else:
-            return "untracked"
+            return ''
         
     def y_pos():
-        data = VET.GetLatestEyePosition(DummyResultSet)[1]
         if data.Tracked:
             return float(data.ScreenPositionYmm)
         else:
-            return "untracked"
+            return ''

@@ -762,6 +762,7 @@ class CkgRunState:
 
         # Check for tracking and fixation
         if self.disp_ops['eyetrack']:
+            eyetracking.poll_tracker()
             self.old_tracked = self.tracked
             self.tracked = eyetracking.is_tracked(self.fps)
             self.old_fixated = self.fixated
@@ -788,6 +789,9 @@ class CkgRunState:
                 if self.fixated:
                     self.events['fix_on'] = True
                 else:
+                    self.events['fix_off'] = True
+            if self.events['grp_on']:
+                if not self.fixated:
                     self.events['fix_off'] = True
 
             # Check for failure of trial
