@@ -764,9 +764,9 @@ class CkgRunState:
         if self.disp_ops['eyetrack']:
             eyetracking.poll_tracker()
             self.old_tracked = self.tracked
-            self.tracked = eyetracking.is_tracked(self.fps)
+            self.tracked = (eyetracking.get_status(self.fps) != -1)
             self.old_fixated = self.fixated
-            self.fixated = eyetracking.is_fixated(self.fps)
+            self.fixated = (eyetracking.get_status(self.fps) == 1)
 
             if self.show_cross:
                 if self.fixated:
