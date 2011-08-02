@@ -177,15 +177,14 @@ if available:
                 cur_status = 0
         else:
             cur_status = -1
-        if cur_status == new_status:
+        if cur_status == new_status and cur_status != last_status:
             count += 1
         else:
             count = 0
-        if cur_status != last_status:
-            new_status = cur_status
         if count >= period / to_decimal(1000) * fps:
             count = 0
-            last_status = new_status
+            last_status = cur_status
+        new_status = cur_status
         return last_status
 
     def x_pos():
