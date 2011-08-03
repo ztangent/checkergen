@@ -791,7 +791,7 @@ class CkgRunState:
                 else:
                     self.events['fix_off'] = True
             if self.events['grp_on']:
-                if not self.fixated:
+                if self.tracked and not self.fixated:
                     self.events['fix_off'] = True
 
             # Check for failure of trial
