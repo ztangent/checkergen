@@ -6,7 +6,7 @@ FrameOverflowError
 
 Classes:
 CkgProj -- A checkergen project, contains settings and CkgDisplayGroups.
-CkgDisplayGroup -- A set of CheckerShapes to be displayed simultaneously.
+CkgDisplayGroup -- A set of CheckerShapes to be displayed siet_stateaneously.
 CheckerShapes -- Abstract checkered shape class
 CheckerBoard -- A (distorted) checkerboard pattern, can color-flip.
 
@@ -88,7 +88,11 @@ class CkgProj:
                             ('bg',  (127, 127, 127)),
                             ('pre',  0),
                             ('post',  0),
-                            ('cross_cols',  ((0, 0, 0), (255, 0, 0))),
+                            ('pre_cross', [(0, True)]),
+                            ('post_cross', [(0, True)]),
+                            ('cross_cols',  ((0, 0, 0),
+                                             (255, 0, 0),
+                                             (0, 0, 255))),
                             ('cross_times',  ('Infinity', 1)),
                             ('orders', []),
                             ('disp_ops', None)])
@@ -138,6 +142,14 @@ class CkgProj:
         post --time in seconds a blank screen will be shown after any
         display groups
 
+        pre_cross -- key-value pairs specifying at what times during the pre
+        period a cross should be shown (e.g. [(0, False), (2, True)]
+        means that a cross is not shown at the start, but is shown
+        from 2 seconds onwards)
+
+        post_cross -- key-value pairs specifying at what times during the post
+        period a cross should be shown
+
         """
         if 'path' in keywords.keys():
             self.load(keywords['path'])
@@ -164,7 +176,7 @@ class CkgProj:
                 raise ValueError
             value = tuple([int(v) for v in value])
         elif name == 'cross_cols':
-            if len(value) != 2:
+            if len(value) != 3:
                 raise ValueError
             for col in value:
                 if len(col) != 3:
@@ -174,6 +186,8 @@ class CkgProj:
             if len(value) != 2:
                 raise ValueError
             value = tuple([to_decimal(x) for x in value])
+        elif name in ['pre_cross', 'post_cross']:
+            value = [(to_decimal(k), to_bool(v)) for (k, v) in value]
 
         # Store value
         self.__dict__[name] = value
@@ -419,19 +433,25 @@ class CkgProj:
                                disp_ops=disp_ops, order=order)
         runstate.start()
         waitscreen = CkgWaitScreen()
-        # Set order id to be sent if necessary
+        # Set runstate order id if necessary
         if order in self.orders:
-            runstate.events['ord_id'] = self.orders.index(order)
-
+            runstate.ord_id = self.orders.index(order)
         # Count through pre
         for count in range(self.pre * self.fps):
             if runstate.terminate:
                 break
+            pre_time = to_decimal(count) / runstate.fps
+            if pre_time in dict(self.pre_cross):
+                runstate.show_cross = dict(self.pre_cross)[pre_time]
             runstate.update()
         # Loop through repeats
         repeats = runstate.disp_ops['repeats']
         ord_len = len(runstate.order)
         for i in range(repeats):
+            # Restart eyetracking
+            if runstate.disp_ops['eyetrack']:
+                eyetracking.stop()
+                eyetracking.start()
             # Show waitscreen
             if not runstate.disp_ops['waitless']:
                 waitscreen.reset()
@@ -452,12 +472,16 @@ class CkgProj:
                     waitscreen.display(runstate)
                 else:
                     self.groups[gid].display(runstate)
-                # Append failed groups
-                if runstate.disp_ops['eyetrack'] and runstate.true_fail:
-                    if len(runstate.add_gids) < runstate.disp_ops['tryagain']:
-                        runstate.add_gids.append(gid)
-                    else:
-                        runstate.fail_gids.append(gid)
+                if not runstate.terminate:
+                    # Append group id and fail state
+                    runstate.gids.append(gid)
+                    if runstate.disp_ops['eyetrack']:
+                        runstate.fails.append(runstate.true_fail)
+                        # Append groups to be added
+                        if runstate.true_fail:
+                            if (len(runstate.add_gids) <
+                                runstate.disp_ops['tryagain']):
+                                    runstate.add_gids.append(gid)
             runstate.events['blk_off'] = True
         # Stop freqcheck before added groups
         if runstate.disp_ops['freqcheck']:
@@ -466,6 +490,10 @@ class CkgProj:
         if runstate.disp_ops['eyetrack']:
             for blk in grouper(runstate.add_gids,
                                runstate.disp_ops['trybreak']):
+                # Restart eyetracking
+                if runstate.disp_ops['eyetrack']:
+                    eyetracking.stop()
+                    eyetracking.start()
                 # Show waitscreen
                 if not runstate.disp_ops['waitless']:                
                     waitscreen.reset()
@@ -475,11 +503,19 @@ class CkgProj:
                 for gid in blk:
                     if gid != None:
                         self.groups[gid].display(runstate)
+                        if not runstate.terminate:
+                            # Append group id and fail state
+                            runstate.gids.append(gid)
+                            if runstate.disp_ops['eyetrack']:
+                                runstate.fails.append(runstate.true_fail)
                 runstate.events['blk_off'] = True            
         # Count through post
         for count in range(self.post * self.fps):
             if runstate.terminate:
                 break
+            post_time = to_decimal(count) / runstate.fps
+            if post_time in dict(self.post_cross):
+                runstate.show_cross = dict(self.post_cross)[post_time]
             runstate.update()
 
         # Stop and output log
@@ -573,11 +609,14 @@ class CkgRunState:
                      ('order', []),
                      ('disp_ops', None),
                      ('events', None),
+                     ('gids', []),
+                     ('fails', []),
                      ('add_gids', []),
-                     ('fail_gids', []),
                      ('timestamps', []),
                      ('durstamps', []),
-                     ('trigstamps', [])])
+                     ('trigstamps', []),
+                     ('eye_x', []),
+                     ('eye_y', [])])
 
     DEFAULTS['events'] = dict([('ord_id', None),
                                ('blk_on', False),
@@ -612,12 +651,14 @@ class CkgRunState:
 
         self._count = 0
         self._old_code = 0
+        self.ord_id = None
         self.terminate = False
 
         # Flag used by freqcheck
         self.fc_send = False
 
         # Create fixation crosses
+        self.show_cross = True
         self.fix_crosses = [graphics.Cross([r/2 for r in self.res],
                                            (20, 20), col = cross_col) 
                             for cross_col in self.cross_cols]
@@ -702,15 +743,12 @@ class CkgRunState:
 
         # Set process priority
         if self.disp_ops['priority'] != None:
-            if not priority.available[sys.platform]:
-                msg = "setting priority not available on {0}".\
-                    format(sys.platform)
-                raise NotImplementedError(msg)
-            else:
-                try:
-                    priority.set(self.disp_ops['priority'])
-                except ValueError:
-                    priority.set(int(self.disp_ops['priority']))
+            try:
+                priority.set(self.disp_ops['priority'])
+            except ValueError:
+                priority.set(int(self.disp_ops['priority']))
+            except:
+                pass
 
         # Start timers
         if self.disp_ops['logtime']:
@@ -725,17 +763,22 @@ class CkgRunState:
 
         # Check for tracking and fixation
         if self.disp_ops['eyetrack']:
+            eyetracking.poll_tracker()
             self.old_tracked = self.tracked
-            self.tracked = eyetracking.is_tracked(self.fps)
+            self.tracked = (eyetracking.get_status(self.fps) != -1)
             self.old_fixated = self.fixated
-            self.fixated = eyetracking.is_fixated(self.fps)
+            self.fixated = (eyetracking.get_status(self.fps) == 1)
 
-            if self.fixated:
-                # Draw normal cross color if fixating
-                self.fix_crosses[0].draw()
-            else:
-                # Draw alternative cross color if not fixating
-                self.fix_crosses[1].draw()
+            if self.show_cross:
+                if self.fixated:
+                    # Draw normal cross color if fixating
+                    self.fix_crosses[0].draw()
+                elif self.tracked:
+                    # Draw 2nd cross color if tracked, not fixating
+                    self.fix_crosses[1].draw()
+                else:
+                    # Draw 3rd cross color if untracked
+                    self.fix_crosses[2].draw()
 
             # Update eyetracking events
             if self.tracked != self.old_tracked:
@@ -748,17 +791,22 @@ class CkgRunState:
                     self.events['fix_on'] = True
                 else:
                     self.events['fix_off'] = True
+            if self.events['grp_on']:
+                if self.tracked and not self.fixated:
+                    self.events['fix_off'] = True
 
             # Check for failure of trial
             if self.tracked and not self.fixated:
                 self.fix_fail = True
+
         else:
             # Change cross color based on time
-            if (self._count % (sum(self.cross_times) * self.fps) 
-                < self.cross_times[0] * self.fps):
-                self.fix_crosses[0].draw()
-            else:
-                self.fix_crosses[1].draw()                
+            if self.show_cross:
+                if (self._count % (sum(self.cross_times) * self.fps) 
+                    < self.cross_times[0] * self.fps):
+                    self.fix_crosses[0].draw()
+                else:
+                    self.fix_crosses[1].draw()                
                 
         if self.disp_ops['export']:
             # Save current frame to file
@@ -796,11 +844,18 @@ class CkgRunState:
                              self.encode_events())
             self._old_code = self.encode_events
 
-        # Log when triggers are sent
-        if self.disp_ops['logtime'] and self.encode_events() > 0:
-            self.trigstamps.append(self.encode_events())
-        else:
-            self.trigstamps.append('')
+        # Log eye positions and when triggers are sent
+        if self.disp_ops['logtime']:
+            if self.disp_ops['eyetrack']:
+                self.eye_x.append(eyetracking.x_pos())
+                self.eye_y.append(eyetracking.y_pos())
+            else:
+                self.eye_x.append('')
+                self.eye_y.append('')
+            if self.encode_events() > 0:
+                self.trigstamps.append(self.encode_events())
+            else:
+                self.trigstamps.append('')
 
         # Clear canvas, events, prepare for next frame
         if self.disp_ops['export']:
@@ -813,7 +868,11 @@ class CkgRunState:
                 self.window.clear()
             if self.window.has_exit:
                 self.terminate = True
+        # Send ord_id immediately after blk_on
+        send_ord_id_next = self.events['blk_on']
         self.events = copy.deepcopy(self.__class__.DEFAULTS['events'])
+        if send_ord_id_next:
+            self.events['ord_id'] = self.ord_id
 
         self._count += 1
         
@@ -833,8 +892,10 @@ class CkgRunState:
             self.window.close()
         if self.disp_ops['trigser'] or self.disp_ops['trigpar']:
             trigger.quit(self.disp_ops['trigser'], self.disp_ops['trigpar'])
-        if self.disp_ops['priority'] != None:
+        try:
             priority.set('normal')
+        except:
+            pass
 
     def encode_events(self):
         """Hard code specific trigger values for events."""
@@ -846,27 +907,27 @@ class CkgRunState:
         elif self.events['blk_off']:
             code = 127
         else:
-            mult = 0
+            et_state = 0
             if self.events['fix_on']:
-                mult = 4
+                et_state = 4
             elif self.events['track_on']:
-                mult = 3
+                et_state = 2
             if self.events['track_off']:
-                mult = 1
+                et_state = 1
             elif self.events['fix_off']:
-                mult = 2
+                et_state = 2
             if self.events['grp_on']:
-                code = 100 + mult
+                code = 100 + et_state
             elif self.events['grp_off']:
-                code = 90 + mult
+                code = 90 + et_state
+            elif et_state > 0:
+                code = 110 + et_state
             elif len(self.events['sids']) > 0:
                 code = ((0 in self.events['sids'])*2**0 +
                         (1 in self.events['sids'])*2**1 +
                         (2 in self.events['sids'])*2**2 +
-                        (3 in self.events['sids'])*2**3)
-                code = mult*16 + code
-            elif mult > 0:
-                code = 110 + mult
+                        (3 in self.events['sids'])*2**3 +
+                        16)
         return code
 
     def log(self, path=None):
@@ -887,24 +948,31 @@ class CkgRunState:
             writer.writerow(self.disp_ops.keys())
             writer.writerow(self.disp_ops.values())
             writer.writerow(['order:'] + self.order)
+            writer.writerow(['groups', 'failure'])
+            if not self.disp_ops['eyetrack']:
+                self.fails = ['NA'] * len(self.gids)
+            for i in zip(self.gids, self.fails):
+                writer.writerow(list(i))
             if self.disp_ops['eyetrack']:
                 writer.writerow(['groups added'])
                 for blk in grouper(self.add_gids,
                                    self.disp_ops['trybreak'], ''):
                     writer.writerow(blk)
-                writer.writerow(['groups failed'])
-                for blk in grouper(self.fail_gids,
-                                   self.disp_ops['trybreak'], ''):
-                    writer.writerow(blk)
             if self.disp_ops['logtime'] or self.disp_ops['logdur']:
-                stamps = [self.timestamps, self.durstamps, self.trigstamps]
-                writer.writerow(['timestamps', 'durations', 'triggers'])
+                stamps = [self.timestamps, self.durstamps, self.trigstamps,
+                          self.eye_x, self.eye_y]
+                writer.writerow(['timestamps', 'durations', 'triggers',
+                                 'eye x (mm)', 'eye y (mm)'])
                 for stamp in zip(*stamps):
                     writer.writerow(list(stamp))
 
 class CkgDisplayGroup:
 
-    DEFAULTS = OrderedDict([('pre',  0), ('disp',  'Infinity'), ('post',  0)])
+    DEFAULTS = OrderedDict([('pre',  0),
+                            ('disp',  'Infinity'),
+                            ('post',  0),
+                            ('pre_cross', [(0, True)]),
+                            ('post_cross', [(0, True)])])
 
     def __init__(self, **keywords):
         """Create a new group of shapes to be displayed together.
@@ -918,6 +986,14 @@ class CkgDisplayGroup:
         post -- time in seconds a blank screen is shown after
         shapes in group are displayed
 
+        pre_cross -- key-value pairs specifying at what times during the pre
+        period a cross should be shown (e.g. [(0, False), (2, True)]
+        means that a cross is not shown at the start, but is shown
+        from 2 seconds onwards)
+
+        post_cross -- key-value pairs specifying at what times during the post
+        period a cross should be shown
+        
         """
         for kw in self.__class__.DEFAULTS.keys():
             if kw in keywords.keys():
@@ -928,8 +1004,11 @@ class CkgDisplayGroup:
         self.reset()
 
     def __setattr__(self, name, value):
-        if name in self.__class__.DEFAULTS:
+        if name in ['pre', 'disp', 'post']:
             value = to_decimal(value)
+        elif name in ['pre_cross', 'post_cross']:
+            value = [(to_decimal(k), to_bool(v)) for (k, v) in value]
+
         self.__dict__[name] = value
 
     def duration(self):
@@ -968,8 +1047,12 @@ class CkgDisplayGroup:
         for count in range(self.pre * runstate.fps):
             if runstate.terminate:
                 break
+            pre_time = to_decimal(count) / runstate.fps
+            if pre_time in dict(self.pre_cross):
+                runstate.show_cross = dict(self.pre_cross)[pre_time]
             runstate.update()
         runstate.events['grp_on'] = True
+        runstate.show_cross = True
         if runstate.disp_ops['eyetrack']:
             runstate.fix_fail = False
             runstate.true_fail = False
@@ -986,6 +1069,9 @@ class CkgDisplayGroup:
         for count in range(self.post * runstate.fps):
             if runstate.terminate:
                 break
+            post_time = to_decimal(count) / runstate.fps
+            if post_time in dict(self.post_cross):
+                runstate.show_cross = dict(self.post_cross)[post_time]
             runstate.update()
 
     def save(self, document, parent):
@@ -1079,6 +1165,7 @@ class CkgWaitScreen(CkgDisplayGroup):
 
     def display(self, runstate):
         """Displays waitscreen in context described by supplied runstate."""
+        runstate.show_cross = True
         while self.steps_done < self.num_steps:
             if runstate.terminate:
                 break

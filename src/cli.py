@@ -240,8 +240,21 @@ class CkgCmd(cmd.Cmd):
                             type=to_decimal, metavar='SECONDS',
                             help='''time in seconds a blank screen will
                                     be shown after all display groups''')
-    set_parser.add_argument('-cc', '--cross_cols', metavar='COLOR1,COLOR2',
-                            action=store_list(2, ',', to_color, [';']),
+    set_parser.add_argument('-prx', '--pre_cross', metavar='T1,B1;T2,B2;...',
+                           action=store_list(None, ';', to_list, [',']),
+                           help='''list of time-boolean pairs separated
+                                   by semicolons where the boolean value
+                                   represents the visibility of the cross
+                                   at that time during the pre period''')
+    set_parser.add_argument('-pox', '--post_cross', metavar='T1,B1;T2,B2;...',
+                           action=store_list(None, ';', to_list, [',']),
+                           help='''list of time-boolean pairs separated
+                                   by semicolons where the boolean value
+                                   represents the visibility of the cross
+                                   at that time during the post period''')
+    set_parser.add_argument('-cc', '--cross_cols',
+                            metavar='COLOR1,COLOR2,COLOR3',
+                            action=store_list(3, ',', to_color, [';']),
                             help='''fixation cross coloration
                                     (color format: R;G;B, 
                                     component range from 0-255)''')
@@ -350,6 +363,21 @@ class CkgCmd(cmd.Cmd):
     edgrp_parser.add_argument('--post', type=to_decimal, metavar='SECONDS',
                               help='''time in seconds a blank screen will
                                       be shown after shapes are displayed''')
+    edgrp_parser.add_argument('-prx', '--pre_cross',
+                              metavar='T1,B1;T2,B2;...',
+                              action=store_list(None, ';', to_list, [',']),
+                              help='''list of time-boolean pairs separated
+                                      by semicolons where the boolean value
+                                      represents the visibility of the cross
+                                      at that time during the pre period''')
+    edgrp_parser.add_argument('-pox', '--post_cross',
+                              metavar='T1,B1;T2,B2;...',
+                              action=store_list(None, ';', to_list, [',']),
+                              help='''list of time-boolean pairs separated
+                                      by semicolons where the boolean value
+                                      represents the visibility of the cross
+                                      at that time during the post period''')
+
     def help_edgrp(self):
         self.__class__.edgrp_parser.print_help()
 
@@ -724,6 +752,12 @@ class CkgCmd(cmd.Cmd):
                 ls_str(self.cur_proj.pre).rjust(26),\
                 ls_str(self.cur_proj.post).rjust(26)
             print \
+                'pre-cross'.rjust(26),\
+                'post-cross'.rjust(26)
+            print \
+                ls_str(self.cur_proj.pre_cross).rjust(26),\
+                ls_str(self.cur_proj.post_cross).rjust(26)
+            print \
                 'cross colors'.rjust(26),\
                 'cross times'.rjust(26)
             print \
@@ -777,6 +811,13 @@ class CkgCmd(cmd.Cmd):
                     ls_str(group.pre).rjust(20),\
                     ls_str(group.disp).rjust(20),\
                     ls_str(group.post).rjust(20)
+                print \
+                    'pre-cross'.rjust(26),\
+                    'post-cross'.rjust(26)
+                print \
+                    ls_str(group.pre_cross).rjust(26),\
+                    ls_str(group.post_cross).rjust(26)
+
                 if len(group.shapes) > 0:
                     print \
                         ''.rjust(2),\
@@ -976,11 +1017,10 @@ class CkgCmd(cmd.Cmd):
                     eyetracking.EyetrackingError):
                 print ''
                 print "error:", str(sys.exc_value)
-                if args.priority != None:
-                    try:
-                        priority.set('normal')
-                    except:
-                        pass
+                try:
+                    priority.set('normal')
+                except:
+                    pass
                 return
             print "done"
 

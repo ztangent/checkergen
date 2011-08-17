@@ -6,8 +6,7 @@ from utils import *
 
 FIX_POS = (0, 0)
 FIX_RANGE = (20, 20)
-FIX_PER = 300
-TRACK_PER = 300
+PERIOD = 300
 
 try:
     import win32com.client
@@ -42,10 +41,10 @@ if available:
     # For easier access to constants and standardization with MATLAB interface
     CRS = win32com.client.constants
     
-    lastfixstatus = False
-    fixcount = 0
-    lasttrackstatus = False
-    trackcount = 0
+    data = None
+    last_status = -1
+    new_status = -1
+    count = 0
 
     def select_source(user_select = False, path = None):
         if user_select:
@@ -122,13 +121,19 @@ if available:
 
     def start():
         """Start tracking the eye."""
-        global lastgoodstamp
+        global data
+        global last_status
+        global new_status
+        global count
         if not is_source_ready():
             select_source()
         if not is_calibrated():
             msg = 'subject not yet calibrated'
             raise EyetrackingError(msg)
-        lastgoodstamp = 0
+        data = None
+        last_status = -1
+        new_status = -1
+        count = 0
         VET.ClearDataBuffer()
         VET.StartTracking()
 
@@ -136,34 +141,22 @@ if available:
         """Stop tracking the eye."""
         VET.StopTracking()
 
-    def is_tracked(fps, track_period=TRACK_PER):
-        """Returns true if the eye is being tracked.
+    def poll_tracker():
+        """Poll tracker for tracking information."""
+        global data
+        data = VET.GetLatestEyePosition(DummyResultSet)[1]        
+
+    def get_status(fps, period=PERIOD,
+                        fix_pos=FIX_POS,
+                        fix_range=FIX_RANGE):
+        """Returns fixation/tracking status.
+        -1 for untracked, 0 for unfixated, 1 for fixated.
 
         fps -- frames per second at which stimulus is running
 
-        track_period -- duration in milliseconds during which eye has to
-        be consistently tracked or untracked in order for value returned
+        period -- duration in milliseconds during which eye has to
+        maintain the same status in order for value returned
         by this function to change
-
-        """
-        global lasttrackstatus
-        global trackcount
-        data = VET.GetLatestEyePosition(DummyResultSet)[1]
-        if data.Tracked != lasttrackstatus:
-            trackcount += 1
-        else:
-            trackcount = 0
-        if trackcount >= track_period / to_decimal(1000) * fps:
-            trackcount = 0
-            lasttrackstatus = data.Tracked
-        return lasttrackstatus
-
-    def is_fixated(fps, fix_pos=FIX_POS,
-                        fix_range=FIX_RANGE,
-                        fix_period=FIX_PER):
-        """Checks whether subject is fixating on specified location.
-
-        fps -- frames per second at which stimulus is running
 
         fix_pos -- (x, y) position of desired fixation location in mm
         from center of screen
@@ -171,25 +164,37 @@ if available:
         fix_range -- (width, height) of box surrounding fix_pos within
         which fixation is allowed (in mm)
 
-        fix_period -- duration in milliseconds during which eye has to
-        be consistently fixated or not fixated in order for value returned
-        by this function to change
-
         """
-        global lastfixstatus
-        global fixcount
-        data = VET.GetLatestEyePosition(DummyResultSet)[1]
+        global last_status
+        global new_status
+        global count
         pos = (data.ScreenPositionXmm, data.ScreenPositionYmm)
         diff = [abs(p - fp) for p, fp in zip(pos, fix_pos)]
-        curfixstatus = False
         if data.Tracked == True:
             if diff[0] < fix_range[0] and diff[1] < fix_range[1]:
-                curfixstatus = True
-        if curfixstatus != lastfixstatus:
-            fixcount += 1
+                cur_status = 1
+            else:
+                cur_status = 0
         else:
-            fixcount = 0
-        if fixcount >= fix_period / to_decimal(1000) * fps:
-            fixcount = 0
-            lastfixstatus = curfixstatus
-        return lastfixstatus
+            cur_status = -1
+        if cur_status == new_status and cur_status != last_status:
+            count += 1
+        else:
+            count = 0
+        if count >= period / to_decimal(1000) * fps:
+            count = 0
+            last_status = cur_status
+        new_status = cur_status
+        return last_status
+
+    def x_pos():
+        if data.Tracked:
+            return float(data.ScreenPositionXmm)
+        else:
+            return ''
+        
+    def y_pos():
+        if data.Tracked:
+            return float(data.ScreenPositionYmm)
+        else:
+            return ''
