@@ -30,7 +30,6 @@ import trigger
 import eyetracking
 from utils import *
 
-# A change
 # Use OrderedDict substitute if we don't have Python 2.7
 if sys.version_info < (2, 7):
     from odict import OrderedDict
